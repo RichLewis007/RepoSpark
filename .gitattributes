@@ -1,2 +1,17 @@
-# Ensure consistent Git behavior
-* text=auto
+# Auto-generated .gitattributes
+# Enforce LF line endings and UTF-8 encoding
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.c text eol=lf
+*.cpp text eol=lf
+*.h text eol=lf
+*.java text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.go text eol=lf
+*.rs text eol=lf

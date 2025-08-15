@@ -1,3 +1,5 @@
+# Local dev files
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -134,16 +136,6 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Environments
-.env
-.envrc
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -181,13 +173,6 @@ cython_debug/
 # Learn more at https://abstra.io/docs
 .abstra/
 
-# Visual Studio Code
-#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
-#  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#  and can be added to the global gitignore or merged into this file. However, if you prefer, 
-#  you could uncomment the following to ignore the entire vscode folder
-# .vscode/
-
 # Ruff stuff:
 .ruff_cache/
 
@@ -201,7 +186,60 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Visual Studio Code
+#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
+#  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
+#  and can be added to the global gitignore or merged into this file. However, if you prefer, 
+#  you could uncomment the following to ignore the entire vscode folder
+.vscode/
+*.code-workspace
+
+# IDE/Editor specific files (additional)
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Personal development notes
+*-notes.md
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS generated files (additional)
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs and debugging
+*.log
+logs/
+debug.log
+error.log
+
+# Environments
+.env
+.envrc
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Local configuration files
+config.local.*
+settings.local.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
