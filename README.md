@@ -1,4 +1,4 @@
-# RepoSpark
+# ⚡ RepoSpark
 
 A Python GUI for creating the most comprehensive scaffold for new GitHub repositories.
 
