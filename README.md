@@ -1,6 +1,6 @@
-# RepoSpark
+# ⚡ RepoSpark
 
-A modern PySide6-based application that is a user-friendly graphical interface for creating GitHub repositories.
+A Python GUI for creating the most comprehensive scaffold for new GitHub repositories.
 
 ## Features
 
