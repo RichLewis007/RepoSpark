@@ -4,6 +4,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -30,11 +32,11 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 # Check Python version
-python_version=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-required_version="3.8"
+python_version=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
+required_version="3.13.11"
 
 if [ "$(printf '%s\n' "$required_version" "$python_version" | sort -V | head -n1)" != "$required_version" ]; then
-    print_error "Python 3.8 or higher is required. Current version: $python_version"
+    print_error "Python 3.13.11 or higher is required. Current version: $python_version"
     exit 1
 fi
 
@@ -70,7 +72,7 @@ if [ "$USE_UV" = true ]; then
         elif [ -f "requirements.txt" ]; then
             uv pip install -r requirements.txt
         else
-            uv pip install PySide6>=6.4.0
+            uv pip install PySide6==6.7.3
         fi
         
         print_status "Dependencies installed successfully in virtual environment"
@@ -84,7 +86,7 @@ else
         if [ -f "requirements.txt" ]; then
             pip3 install -r requirements.txt
         else
-            pip3 install PySide6>=6.4.0
+            pip3 install PySide6==6.7.3
         fi
         
         print_status "Dependencies installed successfully"
@@ -117,8 +119,9 @@ print_status "Current directory: $(pwd)"
 # Run the application
 if [ "$USE_UV" = true ]; then
     print_status "Running with uv virtual environment..."
-    uv run python3 -m repospark
+    # Add src to PYTHONPATH and run the module
+    PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH:-}" uv run python3 -m repospark
 else
     print_status "Running with system Python..."
-    python3 -m repospark
+    PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH:-}" python3 -m repospark
 fi

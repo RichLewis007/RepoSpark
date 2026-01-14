@@ -16,58 +16,29 @@ A Python GUI for creating the most comprehensive scaffold for new GitHub reposit
 
 ### System Requirements
 
-- Python 3.8 or higher
+- Python 3.13.11 or higher
+- [uv](https://github.com/astral-sh/uv) package manager
 - Git installed and configured
 - GitHub CLI (gh) installed and authenticated
 
 ### Python Dependencies
 
-- PySide6 >= 6.4.0
+- PySide6 == 6.7.3
 
 ## Installation
 
-### Option 1: Using uv (Recommended)
+1. **Ensure prerequisites are installed:**
 
-1. **Install uv:**
+   - uv, Git, and GitHub CLI (gh) must be installed on your system
 
-   ```bash
-   # macOS
-   brew install uv
+2. **Install dependencies and the package:**
 
-   # Linux/Windows
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
-
-2. **Install dependencies:**
    ```bash
    uv sync
+   uv pip install -e .
    ```
 
-### Option 2: Using pip
-
-1. **Install Python dependencies:**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Install system dependencies:**
-
-   ```bash
-   # Install Git (if not already installed)
-   # macOS:
-   brew install git
-
-   # Ubuntu/Debian:
-   sudo apt-get install git
-
-   # Install GitHub CLI
-   # macOS:
-   brew install gh
-
-   # Ubuntu/Debian:
-   sudo apt-get install gh
-   ```
+   Note: The `-e` flag installs the package in editable mode so it can be imported.
 
 3. **Authenticate with GitHub:**
    ```bash
@@ -85,14 +56,11 @@ A Python GUI for creating the most comprehensive scaffold for new GitHub reposit
 2. **Run the application:**
 
    ```bash
-   # Using uv (recommended)
-   uv run repospark
-
-   # Or run as module
-   uv run python -m repospark
-
-   # Or use the launcher script
+   # Recommended: Use the launcher script
    ./run_repospark.sh
+
+   # Or run directly with uv (add src to PYTHONPATH)
+   PYTHONPATH=src uv run python -m repospark
    ```
 
 3. **Configure your repository:**
@@ -183,15 +151,14 @@ The application provides comprehensive error handling:
    - Run `gh auth login` in terminal
    - Follow the authentication prompts
 
-2. **"Git is not installed"**
+2. **"Git is not installed" or "uv is not installed"**
 
-   - Install Git using your system's package manager
-   - Ensure Git is in your PATH
+   - Ensure Git and uv are installed and available in your PATH
 
 3. **"PySide6 not found"**
 
    - Run `uv sync` to install dependencies
-   - Ensure you're using Python 3.8+
+   - Ensure you're using Python 3.13.11+
 
 4. **Repository creation fails**
    - Check your internet connection
