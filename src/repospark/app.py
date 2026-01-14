@@ -645,7 +645,7 @@ class FolderTreeWidget(QTreeWidget):
                 background-color: #ffffff;
                 border: 1px solid #d0d7de;
                 border-radius: 8px;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
                 font-size: 13px;
                 color: #24292f;
                 selection-background-color: #0969da;
@@ -1010,11 +1010,8 @@ class RepoSparkGUI(QMainWindow):
         self.focus_timer.timeout.connect(self.check_focus)
         self.focus_timer.start(100)  # Check every 100ms
         
-        # Set tab order for logical flow (after all widgets are created)
-        # Connect sections: Repository -> Visibility -> License -> Project Type
-        self.setTabOrder(self.description_edit, self.visibility_public_radio)
-        self.setTabOrder(self.visibility_private_radio, self.license_none_radio)
-        self.setTabOrder(self.license_gpl_radio, self.project_type_other_radio)
+        # Tab order is set within each group above
+        # Cross-group tab order is handled automatically by Qt's focus system
         
         # Initialize help content
         self.update_help_info()
@@ -1411,7 +1408,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                    body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
                     h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
                     p {{ margin: 8px 0; line-height: 1.4; }}
                     ul {{ margin: 8px 0; padding-left: 20px; }}
@@ -1437,7 +1434,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1466,7 +1463,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                    body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
                     h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
                     p {{ margin: 8px 0; line-height: 1.4; }}
                     ul {{ margin: 8px 0; padding-left: 20px; }}
@@ -1493,7 +1490,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1522,7 +1519,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1548,7 +1545,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1577,7 +1574,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1603,7 +1600,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1629,7 +1626,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1655,7 +1652,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1684,7 +1681,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1710,7 +1707,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1736,7 +1733,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1762,7 +1759,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1788,7 +1785,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1814,7 +1811,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1840,7 +1837,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1874,7 +1871,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1903,7 +1900,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                    body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
                     h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
                     p {{ margin: 8px 0; line-height: 1.4; }}
                     ul {{ margin: 8px 0; padding-left: 20px; }}
@@ -1952,7 +1949,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                    body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
                     h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
                     p {{ margin: 8px 0; line-height: 1.4; }}
                     ul {{ margin: 8px 0; padding-left: 20px; }}
@@ -2002,7 +1999,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                    body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
                     h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
                     p {{ margin: 8px 0; line-height: 1.4; }}
                     ul {{ margin: 8px 0; padding-left: 20px; }}
@@ -2028,7 +2025,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -2379,7 +2376,7 @@ This project is licensed under the {self.license_combo.currentText()} License.
                 <style>
                     /* GitHub-style CSS */
                     body {{
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+                        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
                         font-size: 14px;
                         line-height: 1.5;
                         color: #24292f;
