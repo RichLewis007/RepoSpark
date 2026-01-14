@@ -10,10 +10,10 @@ import os
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer
 
-# Add current directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from src.repospark import RepoSparkGUI as RepoSpark
+from repospark import RepoSparkGUI as RepoSpark
 
 
 class DemoWindow(RepoSpark):

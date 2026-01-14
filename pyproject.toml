@@ -1,36 +1,43 @@
 [project]
 name = "repospark"
-version = "0.1.0"
+version = "0.2.0"
 description = "A PySide6 GUI application for creating GitHub repositories"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.13.11"
 authors = [{ name = "Rich Lewis" }]
 # Author: Rich Lewis - GitHub: @RichLewis007
+
 dependencies = [
-    "PySide6>=6.4.0",
-    "markdown>=3.4.0",
+  "PySide6==6.7.3",
+  "markdown>=3.4.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-qt>=4.0.0",
+  "pytest>=8.0.0",
+  "pytest-qt>=4.4.0",
+  "ruff>=0.5.0",
+  "pyright>=1.1.380",
 ]
 
 [project.scripts]
-repospark = "src.repospark:main"
+repospark = "repospark:main"
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+qt_api = "pyside6"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 
-[dependency]
-groups.dev = [
-    "pytest>=7.0.0",
-    "pytest-qt>=4.0.0",
-]
-
-
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

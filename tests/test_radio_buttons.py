@@ -7,15 +7,15 @@ Test script for radio button functionality and help system
 import sys
 import os
 
-# Add current directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_radio_button_methods():
     """Test the radio button helper methods"""
     print("Testing radio button helper methods...")
     
     try:
-        from src.repospark import RepoSparkGUI
+        from repospark import RepoSparkGUI
         from PySide6.QtWidgets import QApplication
         
         app = QApplication(sys.argv)
@@ -97,7 +97,7 @@ def test_config_generation():
     print("\nTesting configuration generation...")
     
     try:
-        from src.repospark import RepoSparkGUI
+        from repospark import RepoSparkGUI
         from PySide6.QtWidgets import QApplication
         
         app = QApplication(sys.argv)

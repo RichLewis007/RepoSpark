@@ -91,9 +91,9 @@ else
     fi
 fi
 
-# Check if repospark.py exists
-if [ ! -f "src/repospark.py" ]; then
-    print_error "repospark.py not found in src directory"
+# Check if repospark package exists
+if [ ! -d "src/repospark" ] || [ ! -f "src/repospark/app.py" ]; then
+    print_error "repospark package not found in src directory"
     exit 1
 fi
 
@@ -117,8 +117,8 @@ print_status "Current directory: $(pwd)"
 # Run the application
 if [ "$USE_UV" = true ]; then
     print_status "Running with uv virtual environment..."
-    uv run python3 -m src.repospark
+    uv run python3 -m repospark
 else
     print_status "Running with system Python..."
-    python3 -m src.repospark
+    python3 -m repospark
 fi

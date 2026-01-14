@@ -7,15 +7,15 @@ Test script for GitHub-flavored markdown preview
 import sys
 import os
 
-# Add current directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_markdown_rendering():
     """Test markdown rendering functionality"""
     print("Testing markdown rendering...")
     
     try:
-        from src.repospark import RepoSparkGUI
+        from repospark import RepoSparkGUI
         from PySide6.QtWidgets import QApplication
         
         app = QApplication(sys.argv)
@@ -92,7 +92,7 @@ def test_window_sizing():
     print("\nTesting window sizing...")
     
     try:
-        from src.repospark import RepoSparkGUI
+        from repospark import RepoSparkGUI
         from PySide6.QtWidgets import QApplication
         
         app = QApplication(sys.argv)
@@ -142,7 +142,7 @@ def test_github_style_css():
     print("\nTesting GitHub-style CSS...")
     
     try:
-        from src.repospark import RepoSparkGUI
+        from repospark import RepoSparkGUI
         from PySide6.QtWidgets import QApplication
         
         app = QApplication(sys.argv)

@@ -86,14 +86,10 @@ A Python GUI for creating the most comprehensive scaffold for new GitHub reposit
 
    ```bash
    # Using uv (recommended)
-   uv run python -m src.repospark
+   uv run repospark
 
-   # Or activate virtual environment first
-   source .venv/bin/activate
-   python -m src.repospark
-
-   # Using pip (if not using uv)
-   python -m src.repospark
+   # Or run as module
+   uv run python -m repospark
 
    # Or use the launcher script
    ./run_repospark.sh

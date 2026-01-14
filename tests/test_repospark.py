@@ -9,10 +9,10 @@ import sys
 import os
 from unittest.mock import patch, MagicMock
 
-# Add current directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.repospark import GitHubAPI, GitOperations, ScaffoldGenerator, RepoSparkGUI
+from repospark import GitHubAPI, GitOperations, ScaffoldGenerator, RepoSparkGUI
 from PySide6.QtWidgets import QApplication
 
 
