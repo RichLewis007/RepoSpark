@@ -2,6 +2,7 @@
 Project type definitions for RepoSpark
 Defines different project types and their specific configurations
 """
+# Author: Rich Lewis - GitHub: @RichLewis007
 
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional

@@ -3,6 +3,7 @@
 Demo script for RepoSpark
 This script launches the application with sample data pre-filled for demonstration
 """
+# Author: Rich Lewis - GitHub: @RichLewis007
 
 import sys
 import os

@@ -2,6 +2,7 @@
 """
 Test script for GitHub-flavored markdown preview
 """
+# Author: Rich Lewis - GitHub: @RichLewis007
 
 import sys
 import os

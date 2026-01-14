@@ -2,6 +2,7 @@
 """
 RepoSpark - A PySide6 application to create GitHub repositories
 """
+# Author: Rich Lewis - GitHub: @RichLewis007
 
 import sys
 import os

@@ -2,6 +2,7 @@
 """
 Test script for radio button functionality and help system
 """
+# Author: Rich Lewis - GitHub: @RichLewis007
 
 import sys
 import os

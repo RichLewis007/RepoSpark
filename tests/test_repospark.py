@@ -3,6 +3,7 @@
 Test script for RepoSpark components
 This script tests the application without requiring actual GitHub operations
 """
+# Author: Rich Lewis - GitHub: @RichLewis007
 
 import sys
 import os

@@ -2,6 +2,7 @@
 """
 Test script for the template system
 """
+# Author: Rich Lewis - GitHub: @RichLewis007
 
 import sys
 import os

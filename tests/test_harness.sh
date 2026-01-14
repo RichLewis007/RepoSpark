@@ -2,6 +2,7 @@
 # ============================================================================
 # Test harness for quick-create-github-repo.sh
 # Simulates and verifies behavior under different conditions
+# Author: Rich Lewis - GitHub: @RichLewis007
 # ============================================================================
 
 set -euo pipefail

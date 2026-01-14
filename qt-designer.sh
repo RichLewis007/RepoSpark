@@ -1,5 +1,6 @@
 #!/bin/bash
 # Convenient script to launch Qt Designer from PySide6 and open the UI file
+# Author: Rich Lewis - GitHub: @RichLewis007
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UI_DIR="${SCRIPT_DIR}/src/python_gui_scaffold/assets/ui"

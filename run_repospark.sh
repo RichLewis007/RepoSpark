@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # RepoSpark Launcher Script
+# Author: Rich Lewis - GitHub: @RichLewis007
 
 set -euo pipefail
 

@@ -2,6 +2,7 @@
 README.md template system for RepoSpark
 Generates professional README files with smart defaults based on project type
 """
+# Author: Rich Lewis - GitHub: @RichLewis007
 
 from typing import Dict, Any, Optional, List
 from .project_types import ProjectType
