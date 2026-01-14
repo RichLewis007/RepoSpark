@@ -6,8 +6,8 @@ This script launches the application with sample data pre-filled for demonstrati
 
 import sys
 import os
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QTimer
 
 # Add current directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -41,10 +41,10 @@ class DemoWindow(RepoSpark):
         self.license_combo.setCurrentText("MIT")
         
         # Set sample topics
-        self.topics_edit.setText("python, demo, pyqt6")
+        self.topics_edit.setText("python, demo, pyside6")
         
         # Set remote type to HTTPS
-        self.remote_combo.setCurrentText("HTTPS")
+        self.remote_https_radio.setChecked(True)
         
         # Enable scaffold creation
         self.create_scaffold_check.setChecked(True)
@@ -58,7 +58,7 @@ class DemoWindow(RepoSpark):
     
     def create_repository(self):
         """Override to show demo message instead of creating actual repository"""
-        from PyQt6.QtWidgets import QMessageBox
+        from PySide6.QtWidgets import QMessageBox
         
         QMessageBox.information(
             self,
@@ -92,7 +92,7 @@ def main():
     
     # Show welcome message after a short delay
     def show_welcome():
-        from PyQt6.QtWidgets import QMessageBox
+        from PySide6.QtWidgets import QMessageBox
         QMessageBox.information(
             window,
                     "Welcome to RepoSpark Demo!",
@@ -101,9 +101,9 @@ def main():
             "You can explore all the tabs and options.\n\n"
             "Note: This is a demo mode - no actual repositories will be created.\n\n"
             "To use the real application:\n"
-            "1. Install dependencies: ./install.sh\n"
+            "1. Install dependencies: uv sync\n"
             "2. Authenticate with GitHub: gh auth login\n"
-            "3. Run: ./run_repospark.sh"
+            "3. Run: uv run repospark or ./run_repospark.sh"
         )
     
     QTimer.singleShot(500, show_welcome)

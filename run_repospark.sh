@@ -51,7 +51,7 @@ else
     exit 1
 fi
 
-# Check if PyQt6 is installed
+# Check if PySide6 is installed
 if [ "$USE_UV" = true ]; then
     # Check if virtual environment exists
     if [ ! -d ".venv" ]; then
@@ -59,29 +59,31 @@ if [ "$USE_UV" = true ]; then
         uv venv
     fi
     
-    # Check if PyQt6 is installed in uv environment
-    if ! uv run python3 -c "import PyQt6" &> /dev/null; then
-        print_warning "PyQt6 is not installed. Installing dependencies..."
+    # Check if PySide6 is installed in uv environment
+    if ! uv run python3 -c "import PySide6" &> /dev/null; then
+        print_warning "PySide6 is not installed. Installing dependencies..."
         
         # Install dependencies
-        if [ -f "requirements.txt" ]; then
+        if [ -f "pyproject.toml" ]; then
+            uv sync
+        elif [ -f "requirements.txt" ]; then
             uv pip install -r requirements.txt
         else
-            uv pip install PyQt6>=6.4.0
+            uv pip install PySide6>=6.4.0
         fi
         
         print_status "Dependencies installed successfully in virtual environment"
     fi
 else
-    # Check if PyQt6 is installed in system Python
-    if ! python3 -c "import PyQt6" &> /dev/null; then
-        print_warning "PyQt6 is not installed. Installing dependencies..."
+    # Check if PySide6 is installed in system Python
+    if ! python3 -c "import PySide6" &> /dev/null; then
+        print_warning "PySide6 is not installed. Installing dependencies..."
         
         # Install dependencies
         if [ -f "requirements.txt" ]; then
             pip3 install -r requirements.txt
         else
-            pip3 install PyQt6>=6.4.0
+            pip3 install PySide6>=6.4.0
         fi
         
         print_status "Dependencies installed successfully"

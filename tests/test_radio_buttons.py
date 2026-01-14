@@ -15,7 +15,7 @@ def test_radio_button_methods():
     
     try:
         from src.repospark import RepoSparkGUI
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         
         app = QApplication(sys.argv)
         gui = RepoSparkGUI()
@@ -97,7 +97,7 @@ def test_config_generation():
     
     try:
         from src.repospark import RepoSparkGUI
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         
         app = QApplication(sys.argv)
         gui = RepoSparkGUI()

@@ -15,7 +15,7 @@ def test_markdown_rendering():
     
     try:
         from src.repospark import RepoSparkGUI
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         
         app = QApplication(sys.argv)
         gui = RepoSparkGUI()
@@ -92,7 +92,7 @@ def test_window_sizing():
     
     try:
         from src.repospark import RepoSparkGUI
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         
         app = QApplication(sys.argv)
         gui = RepoSparkGUI()
@@ -142,7 +142,7 @@ def test_github_style_css():
     
     try:
         from src.repospark import RepoSparkGUI
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         
         app = QApplication(sys.argv)
         gui = RepoSparkGUI()

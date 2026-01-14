@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RepoSpark - A PyQt6 application to create GitHub repositories
+RepoSpark - A PySide6 application to create GitHub repositories
 """
 
 import sys
@@ -8,9 +8,9 @@ import os
 import subprocess
 import json
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QComboBox, QCheckBox, QPushButton, QTextEdit,
     QGroupBox, QFormLayout, QMessageBox, QProgressBar, QTabWidget,
@@ -18,8 +18,8 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox, QScrollArea, QSplitter, QFrame, QRadioButton,
     QButtonGroup, QTextBrowser, QTreeWidget, QTreeWidgetItem
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QIcon, QPixmap, QPainter, QColor
+from PySide6.QtCore import Qt, QThread, Signal, QTimer
+from PySide6.QtGui import QFont, QIcon, QPixmap, QPainter, QColor
 
 
 class GitHubAPI:
@@ -68,9 +68,14 @@ class GitHubAPI:
             cmd.extend(['--license', license])
         
         try:
-            subprocess.run(cmd, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             return True
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
+            # Log error for debugging (stderr contains error message)
+            print(f"Error creating repository: {e.stderr if e.stderr else str(e)}", file=sys.stderr)
+            return False
+        except FileNotFoundError:
+            print("Error: GitHub CLI (gh) not found", file=sys.stderr)
             return False
     
     @staticmethod
@@ -81,13 +86,18 @@ class GitHubAPI:
             
         try:
             topics_json = json.dumps(topics)
-            subprocess.run([
+            result = subprocess.run([
                 'gh', 'api', '-X', 'PATCH', f'repos/{username}/{repo_name}',
                 '-F', f'topics={topics_json}',
                 '-H', 'Accept: application/vnd.github.mercy-preview+json'
-            ], check=True)
+            ], capture_output=True, text=True, check=True)
             return True
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
+            # Topics setting is not critical, so we just log and continue
+            print(f"Warning: Failed to set topics: {e.stderr if e.stderr else str(e)}", file=sys.stderr)
+            return False
+        except FileNotFoundError:
+            print("Error: GitHub CLI (gh) not found", file=sys.stderr)
             return False
 
 
@@ -98,19 +108,27 @@ class GitOperations:
     def init_repository() -> bool:
         """Initialize git repository"""
         try:
-            subprocess.run(['git', 'init'], check=True)
+            subprocess.run(['git', 'init'], capture_output=True, text=True, check=True)
             return True
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
+            print(f"Error initializing git repository: {e.stderr if e.stderr else str(e)}", file=sys.stderr)
+            return False
+        except FileNotFoundError:
+            print("Error: Git not found", file=sys.stderr)
             return False
     
     @staticmethod
     def add_and_commit() -> bool:
         """Add all files and create initial commit"""
         try:
-            subprocess.run(['git', 'add', '.'], check=True)
-            subprocess.run(['git', 'commit', '-m', 'Initial commit'], check=True)
+            subprocess.run(['git', 'add', '.'], capture_output=True, text=True, check=True)
+            subprocess.run(['git', 'commit', '-m', 'Initial commit'], capture_output=True, text=True, check=True)
             return True
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
+            print(f"Error adding/committing files: {e.stderr if e.stderr else str(e)}", file=sys.stderr)
+            return False
+        except FileNotFoundError:
+            print("Error: Git not found", file=sys.stderr)
             return False
     
     @staticmethod
@@ -122,18 +140,34 @@ class GitOperations:
             else:
                 remote_url = f"https://github.com/{username}/{repo_name}.git"
             
-            subprocess.run(['git', 'remote', 'add', 'origin', remote_url], check=True)
+            subprocess.run(['git', 'remote', 'add', 'origin', remote_url], capture_output=True, text=True, check=True)
             return True
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
+            # Check if remote already exists
+            if 'already exists' in (e.stderr or '').lower():
+                # Try to update existing remote
+                try:
+                    subprocess.run(['git', 'remote', 'set-url', 'origin', remote_url], capture_output=True, text=True, check=True)
+                    return True
+                except subprocess.CalledProcessError:
+                    pass
+            print(f"Error adding remote: {e.stderr if e.stderr else str(e)}", file=sys.stderr)
+            return False
+        except FileNotFoundError:
+            print("Error: Git not found", file=sys.stderr)
             return False
     
     @staticmethod
     def push_to_remote(branch: str = 'main') -> bool:
         """Push to remote repository"""
         try:
-            subprocess.run(['git', 'push', '-u', 'origin', branch], check=True)
+            subprocess.run(['git', 'push', '-u', 'origin', branch], capture_output=True, text=True, check=True)
             return True
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
+            print(f"Error pushing to remote: {e.stderr if e.stderr else str(e)}", file=sys.stderr)
+            return False
+        except FileNotFoundError:
+            print("Error: Git not found", file=sys.stderr)
             return False
     
     @staticmethod
@@ -316,8 +350,8 @@ trim_trailing_whitespace = true
 class RepositoryWorker(QThread):
     """Background worker for repository creation"""
     
-    progress = pyqtSignal(str)
-    finished = pyqtSignal(bool, str)
+    progress = Signal(str)
+    finished = Signal(bool, str)
     
     def __init__(self, config: Dict[str, Any]):
         super().__init__()
@@ -353,10 +387,15 @@ class RepositoryWorker(QThread):
                 self.finished.emit(False, "Failed to create GitHub repository")
                 return
             
-            # Create custom gitignore file if needed
+            # Create custom gitignore file if needed (before git init)
             if gitignore_template in custom_gitignore_templates:
                 self.progress.emit(f"Creating custom .gitignore for {gitignore_template}...")
                 self._create_custom_gitignore(gitignore_template)
+            elif gitignore_template and gitignore_template not in custom_gitignore_templates:
+                # For GitHub templates, we need to fetch the .gitignore from the created repo
+                # or create it locally before git add
+                self.progress.emit(f"Fetching .gitignore template for {gitignore_template}...")
+                self._fetch_gitignore_template(gitignore_template)
             
             # Initialize git if needed
             if not os.path.exists('.git'):
@@ -402,7 +441,7 @@ class RepositoryWorker(QThread):
         except Exception as e:
             self.finished.emit(False, f"Error: {str(e)}")
     
-    def _create_custom_gitignore(self, template_name: str):
+    def _create_custom_gitignore(self, template_name: str) -> None:
         """Create a custom .gitignore file for languages/frameworks not in GitHub's library"""
         gitignore_content = f"# .gitignore for {template_name} projects\n"
         
@@ -571,6 +610,24 @@ class RepositoryWorker(QThread):
         
         with open('.gitignore', 'w') as f:
             f.write(gitignore_content)
+    
+    def _fetch_gitignore_template(self, template_name: str) -> None:
+        """Fetch gitignore template from GitHub API and create local file"""
+        try:
+            result = subprocess.run(
+                ['gh', 'api', f'gitignore/templates/{template_name}'],
+                capture_output=True, text=True, check=True
+            )
+            template_data = json.loads(result.stdout)
+            content = template_data.get('source', '')
+            
+            # Only create if we got content and file doesn't exist
+            if content and not os.path.exists('.gitignore'):
+                with open('.gitignore', 'w') as f:
+                    f.write(content)
+        except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
+            # If we can't fetch it, that's okay - GitHub already created it in the repo
+            pass
 
 
 class FolderTreeWidget(QTreeWidget):
@@ -632,7 +689,7 @@ class FolderTreeWidget(QTreeWidget):
             }
         """)
     
-    def add_folder_item(self, parent, name, folder_type="default"):
+    def add_folder_item(self, parent: Optional[QTreeWidgetItem], name: str, folder_type: str = "default") -> QTreeWidgetItem:
         """Add a folder item with appropriate icon"""
         if parent is None:
             # Add to the tree widget itself (root level)
@@ -659,7 +716,7 @@ class FolderTreeWidget(QTreeWidget):
         
         return item
     
-    def add_file_item(self, parent, name, file_type="default"):
+    def add_file_item(self, parent: Optional[QTreeWidgetItem], name: str, file_type: str = "default") -> QTreeWidgetItem:
         """Add a file item with appropriate icon"""
         if parent is None:
             # Add to the tree widget itself (root level)
@@ -696,7 +753,7 @@ class FolderTreeWidget(QTreeWidget):
         
         return item
     
-    def _get_folder_icon(self, emoji, color):
+    def _get_folder_icon(self, emoji: str, color: str) -> QIcon:
         """Create a custom folder icon with emoji and color"""
         # For now, use the system folder icon but with a simpler approach
         base_icon = self.style().standardIcon(self.style().StandardPixmap.SP_DirIcon)
@@ -705,7 +762,7 @@ class FolderTreeWidget(QTreeWidget):
         # For now, just return the base icon to avoid mask issues
         return base_icon
     
-    def _get_file_icon(self, emoji, color):
+    def _get_file_icon(self, emoji: str, color: str) -> QIcon:
         """Create a custom file icon with emoji and color"""
         # For now, use the system file icon but with a simpler approach
         base_icon = self.style().standardIcon(self.style().StandardPixmap.SP_FileIcon)
@@ -1127,7 +1184,7 @@ class RepoSparkGUI(QMainWindow):
         
         main_layout.addLayout(button_layout)
     
-    def load_defaults(self):
+    def load_defaults(self) -> None:
         """Load default values"""
         # Set default repository name from current directory
         default_name = os.path.basename(os.getcwd())
@@ -1164,11 +1221,32 @@ class RepoSparkGUI(QMainWindow):
         # Initialize README preview
         self.update_readme_preview()
     
-    def validate_inputs(self) -> tuple[bool, str]:
+    def validate_inputs(self) -> Tuple[bool, str]:
         """Validate user inputs"""
         repo_name = self.repo_name_edit.text().strip()
         if not repo_name:
             return False, "Repository name is required"
+        
+        # Validate repository name format (GitHub rules)
+        # Repository names can only contain alphanumeric characters, hyphens, underscores, and dots
+        # They cannot start with a dot or hyphen, and cannot end with a dot
+        import re
+        if not re.match(r'^[a-zA-Z0-9._-]+$', repo_name):
+            return False, "Repository name can only contain alphanumeric characters, hyphens, underscores, and dots"
+        
+        if repo_name.startswith('.') or repo_name.startswith('-'):
+            return False, "Repository name cannot start with a dot or hyphen"
+        
+        if repo_name.endswith('.'):
+            return False, "Repository name cannot end with a dot"
+        
+        if len(repo_name) > 100:
+            return False, "Repository name cannot exceed 100 characters"
+        
+        # Check for command injection attempts
+        dangerous_chars = [';', '&', '|', '`', '$', '(', ')', '<', '>', '\n', '\r']
+        if any(char in repo_name for char in dangerous_chars):
+            return False, "Repository name contains invalid characters"
         
         # Check if gh CLI is available
         try:
@@ -1189,21 +1267,21 @@ class RepoSparkGUI(QMainWindow):
         
         return True, ""
     
-    def on_visibility_changed(self):
+    def on_visibility_changed(self) -> None:
         """Handle visibility change"""
         self.update_help_info()
     
-    def on_license_changed(self):
+    def on_license_changed(self) -> None:
         """Handle license change"""
         self.update_help_info()
     
-    def on_project_type_changed(self):
+    def on_project_type_changed(self) -> None:
         """Handle project type change"""
         self.update_help_info()
         self.update_readme_preview()
         self.update_scaffold_tree()
     
-    def on_gitignore_changed(self):
+    def on_gitignore_changed(self) -> None:
         """Handle gitignore template changes and maintain focus"""
         # Set focus back to the gitignore combo box to keep help context
         self.gitignore_combo.setFocus()
@@ -1255,7 +1333,7 @@ class RepoSparkGUI(QMainWindow):
         self.current_focus_section = section
         self.update_help_info()
     
-    def update_help_info(self):
+    def update_help_info(self) -> None:
         """Update the help information based on current selections"""
         help_content = self._generate_help_content()
         self.help_browser.setHtml(help_content)
@@ -1292,7 +1370,7 @@ class RepoSparkGUI(QMainWindow):
         
         return self._generate_general_help(repo_name, description, visibility, gitignore, license_name, project_type, topics)
     
-    def _generate_general_help(self, repo_name, description, visibility, gitignore, license_name, project_type, topics):
+    def _generate_general_help(self, repo_name: str, description: str, visibility: str, gitignore: str, license_name: str, project_type: str, topics: List[str]) -> str:
         """Generate general overview help content"""
         return f"""
         <html>
@@ -1325,7 +1403,7 @@ class RepoSparkGUI(QMainWindow):
         </html>
         """
     
-    def _generate_repo_name_help(self, repo_name):
+    def _generate_repo_name_help(self, repo_name: str) -> str:
         """Generate help content for repository name"""
         if repo_name:
             return f"""
@@ -1380,7 +1458,7 @@ class RepoSparkGUI(QMainWindow):
             </html>
             """
     
-    def _generate_description_help(self, description):
+    def _generate_description_help(self, description: str) -> str:
         """Generate help content for description"""
         if description:
             return f"""
@@ -1436,7 +1514,7 @@ class RepoSparkGUI(QMainWindow):
             </html>
             """
     
-    def _generate_visibility_help(self, visibility):
+    def _generate_visibility_help(self, visibility: str) -> str:
         """Generate help content for visibility"""
         if visibility == "public":
             return """
@@ -1491,7 +1569,7 @@ class RepoSparkGUI(QMainWindow):
             </html>
             """
     
-    def _generate_license_help(self, license_name):
+    def _generate_license_help(self, license_name: str) -> str:
         """Generate help content for license"""
         if license_name == "MIT":
             return """
@@ -1598,7 +1676,7 @@ class RepoSparkGUI(QMainWindow):
             </html>
             """
     
-    def _generate_project_type_help(self, project_type):
+    def _generate_project_type_help(self, project_type: str) -> str:
         """Generate help content for project type"""
         if project_type == "Other":
             return """
@@ -1783,7 +1861,7 @@ class RepoSparkGUI(QMainWindow):
             </html>
             """
     
-    def _generate_gitignore_help(self, gitignore):
+    def _generate_gitignore_help(self, gitignore: str) -> str:
         """Generate help content for gitignore"""
         custom_templates = [
             "C++", "C#", "Dart", "Go", "Java", "JavaScript", 
@@ -1916,7 +1994,7 @@ class RepoSparkGUI(QMainWindow):
             </html>
             """
     
-    def _generate_topics_help(self, topics):
+    def _generate_topics_help(self, topics: List[str]) -> str:
         """Generate help content for topics"""
         if topics:
             return f"""
@@ -2219,7 +2297,7 @@ class RepoSparkGUI(QMainWindow):
         else:
             return "Other"  # Default
     
-    def update_readme_preview(self):
+    def update_readme_preview(self) -> None:
         """Update the README preview based on current settings"""
         try:
             # Import template system
@@ -2498,7 +2576,7 @@ This project is licensed under the {self.license_combo.currentText()} License.
         content = self.readme_editor.toPlainText()
         self.update_readme_preview_html(content)
     
-    def update_scaffold_tree(self):
+    def update_scaffold_tree(self) -> None:
         """Update the scaffold tree based on current settings"""
         self.scaffold_tree.clear()
         
@@ -2548,7 +2626,7 @@ This project is licensed under the {self.license_combo.currentText()} License.
         # Expand the root item
         self.scaffold_tree.expandItem(root_item)
     
-    def _add_project_specific_files(self, root_item, src_folder, tests_folder, project_type):
+    def _add_project_specific_files(self, root_item: QTreeWidgetItem, src_folder: QTreeWidgetItem, tests_folder: QTreeWidgetItem, project_type: str) -> None:
         """Add project-specific files based on the selected project type"""
         if project_type == "Python Library":
             # Python library specific files
@@ -2636,7 +2714,7 @@ This project is licensed under the {self.license_combo.currentText()} License.
             'readme_content': self.readme_editor.toPlainText() if hasattr(self, 'readme_editor') else ""
         }
     
-    def create_repository(self):
+    def create_repository(self) -> None:
         """Start repository creation process"""
         # Validate inputs
         is_valid, error_msg = self.validate_inputs()
@@ -2684,11 +2762,11 @@ This will create the repository on GitHub and set up the local git repository.""
         
         self.worker.start()
     
-    def update_progress(self, message: str):
+    def update_progress(self, message: str) -> None:
         """Update progress message"""
         self.status_label.setText(message)
     
-    def on_creation_finished(self, success: bool, message: str):
+    def on_creation_finished(self, success: bool, message: str) -> None:
         """Handle repository creation completion"""
         self.progress_bar.setVisible(False)
         self.create_button.setEnabled(True)
@@ -2713,7 +2791,7 @@ This will create the repository on GitHub and set up the local git repository.""
             self.status_label.setText("Repository creation failed")
             QMessageBox.critical(self, "Error", message)
     
-    def cancel_operation(self):
+    def cancel_operation(self) -> None:
         """Cancel the current operation"""
         if self.worker and self.worker.isRunning():
             self.worker.terminate()

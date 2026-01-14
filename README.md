@@ -1,10 +1,10 @@
 # RepoSpark
 
-A modern PyQt6-based application that is a user-friendly graphical interface for creating GitHub repositories.
+A modern PySide6-based application that is a user-friendly graphical interface for creating GitHub repositories.
 
 ## Features
 
-- **Modern Interface**: Clean, intuitive PyQt6-based interface with tabbed organization
+- **Modern Interface**: Clean, intuitive PySide6-based interface with tabbed organization
 - **All Original Functionality**: Complete feature parity with the original bash script
 - **Smart Defaults**: Automatically suggests repository name from current directory
 - **Real-time Validation**: Validates inputs and dependencies before proceeding
@@ -15,21 +15,25 @@ A modern PyQt6-based application that is a user-friendly graphical interface for
 ## Requirements
 
 ### System Requirements
+
 - Python 3.8 or higher
 - Git installed and configured
 - GitHub CLI (gh) installed and authenticated
 
 ### Python Dependencies
-- PyQt6 >= 6.4.0
+
+- PySide6 >= 6.4.0
 
 ## Installation
 
 ### Option 1: Using uv (Recommended)
+
 1. **Install uv:**
+
    ```bash
    # macOS
    brew install uv
-   
+
    # Linux/Windows
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
@@ -40,24 +44,27 @@ A modern PyQt6-based application that is a user-friendly graphical interface for
    ```
 
 ### Option 2: Using pip
+
 1. **Install Python dependencies:**
+
    ```bash
    pip install -r requirements.txt
    ```
 
 2. **Install system dependencies:**
+
    ```bash
    # Install Git (if not already installed)
    # macOS:
    brew install git
-   
+
    # Ubuntu/Debian:
    sudo apt-get install git
-   
+
    # Install GitHub CLI
    # macOS:
    brew install gh
-   
+
    # Ubuntu/Debian:
    sudo apt-get install gh
    ```
@@ -70,24 +77,30 @@ A modern PyQt6-based application that is a user-friendly graphical interface for
 ## Usage
 
 1. **Navigate to your project directory:**
+
    ```bash
    cd /path/to/your/project
    ```
 
 2. **Run the application:**
+
    ```bash
    # Using uv (recommended)
-   uv run python repospark.py
-   
+   uv run python -m src.repospark
+
    # Or activate virtual environment first
    source .venv/bin/activate
-   python repospark.py
-   
+   python -m src.repospark
+
    # Using pip (if not using uv)
-   python repospark.py
+   python -m src.repospark
+
+   # Or use the launcher script
+   ./run_repospark.sh
    ```
 
 3. **Configure your repository:**
+
    - **Basic Settings Tab**: Set repository name, description, visibility, gitignore template, license, and topics
    - **Advanced Settings Tab**: Choose remote type (HTTPS/SSH) and browser options
    - **Project Scaffold Tab**: Configure project structure generation
@@ -97,6 +110,7 @@ A modern PyQt6-based application that is a user-friendly graphical interface for
 ## Features
 
 ### Basic Settings Tab
+
 - **Repository Name**: Auto-filled with current directory name
 - **Description**: Optional repository description
 - **Visibility**: Choose between Public and Private
@@ -105,10 +119,12 @@ A modern PyQt6-based application that is a user-friendly graphical interface for
 - **Topics**: Comma-separated list of repository topics
 
 ### Advanced Settings Tab
+
 - **Remote Type**: Choose between HTTPS (default) and SSH
 - **Browser Options**: Option to open repository in browser after creation
 
 ### Project Scaffold Tab
+
 - **Create Scaffold**: Generate standard project structure
 - **EditorConfig**: Create .editorconfig file for consistent coding style
 - **Scaffold Preview**: Shows what files and directories will be created
@@ -147,36 +163,38 @@ The application provides comprehensive error handling:
 
 ## Comparison with Original Script
 
-| Feature | Bash Script | Application |
-|---------|-------------|-----------------|
-| Repository Creation | ✅ | ✅ |
-| Visibility Selection | ✅ | ✅ |
-| Gitignore Templates | ✅ | ✅ |
-| License Selection | ✅ | ✅ |
-| Topics Setting | ✅ | ✅ |
-| Remote Type Selection | ✅ | ✅ |
-| Project Scaffold | ✅ | ✅ |
-| Progress Indication | Text-based | Visual progress bar |
-| Error Handling | Basic | Comprehensive |
-| User Interface | Command-line prompts | Modern UI |
-| Background Processing | No | Yes |
-| Validation | Basic | Real-time |
+| Feature               | Bash Script          | Application         |
+| --------------------- | -------------------- | ------------------- |
+| Repository Creation   | ✅                   | ✅                  |
+| Visibility Selection  | ✅                   | ✅                  |
+| Gitignore Templates   | ✅                   | ✅                  |
+| License Selection     | ✅                   | ✅                  |
+| Topics Setting        | ✅                   | ✅                  |
+| Remote Type Selection | ✅                   | ✅                  |
+| Project Scaffold      | ✅                   | ✅                  |
+| Progress Indication   | Text-based           | Visual progress bar |
+| Error Handling        | Basic                | Comprehensive       |
+| User Interface        | Command-line prompts | Modern UI           |
+| Background Processing | No                   | Yes                 |
+| Validation            | Basic                | Real-time           |
 
 ## Troubleshooting
 
 ### Common Issues
 
 1. **"GitHub CLI is not authenticated"**
+
    - Run `gh auth login` in terminal
    - Follow the authentication prompts
 
 2. **"Git is not installed"**
+
    - Install Git using your system's package manager
    - Ensure Git is in your PATH
 
-3. **"PyQt6 not found"**
-   - Using uv: `uv sync` or `uv pip install -r requirements.txt`
-   - Using pip: `pip install -r requirements.txt`
+3. **"PySide6 not found"**
+
+   - Run `uv sync` to install dependencies
    - Ensure you're using Python 3.8+
 
 4. **Repository creation fails**
@@ -217,5 +235,5 @@ This project is licensed under the MIT license.
 
 ## Acknowledgments
 
-- PyQt6 team for the excellent GUI framework
+- PySide6 team for the excellent GUI framework
 - GitHub CLI team for the powerful command-line interface
