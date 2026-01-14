@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
 from PySide6.QtGui import QFont, QIcon, QPixmap, QPainter, QColor
 
+from .ui_loader import load_ui, register_custom_widget
+
 
 class GitHubAPI:
     """Handles GitHub API operations"""
@@ -645,7 +647,7 @@ class FolderTreeWidget(QTreeWidget):
                 background-color: #ffffff;
                 border: 1px solid #d0d7de;
                 border-radius: 8px;
-                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
                 font-size: 13px;
                 color: #24292f;
                 selection-background-color: #0969da;
@@ -779,13 +781,15 @@ class RepoSparkGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.worker = None
+        
+        # Register custom widgets for QUiLoader
+        register_custom_widget("FolderTreeWidget", FolderTreeWidget)
+        
         self.init_ui()
         self.load_defaults()
     
     def init_ui(self):
-        """Initialize the user interface"""
-        self.setWindowTitle("RepoSpark - GitHub Repository Creator")
-        
+        """Initialize the user interface by loading .ui files"""
         # Get screen size and set window to half width
         screen = QApplication.primaryScreen()
         screen_geometry = screen.geometry()
@@ -798,140 +802,70 @@ class RepoSparkGUI(QMainWindow):
         
         self.setGeometry(x_position, y_position, half_width, window_height)
         
-        # Create central widget and main layout
-        central_widget = QWidget()
+        # Load main window UI
+        central_widget = load_ui("main_window.ui", self)
         self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
         
-        # Create tab widget
-        tabs = QTabWidget()
-        main_layout.addWidget(tabs)
+        # Find widgets from the loaded UI
+        self.tabs = central_widget.findChild(QTabWidget, "tabs")
+        self.progress_bar = central_widget.findChild(QProgressBar, "progress_bar")
+        self.status_label = central_widget.findChild(QLabel, "status_label")
+        self.create_button = central_widget.findChild(QPushButton, "create_button")
+        self.cancel_button = central_widget.findChild(QPushButton, "cancel_button")
         
-        # Basic settings tab
+        # Set initial state
+        self.progress_bar.setVisible(False)
+        self.cancel_button.setEnabled(False)
+        
+        # Wire up signals
+        self.create_button.clicked.connect(self.create_repository)
+        self.cancel_button.clicked.connect(self.cancel_operation)
+        
+        # Load and add tabs
         basic_tab = self.create_basic_tab()
-        tabs.addTab(basic_tab, "Project Basics")
+        self.tabs.addTab(basic_tab, "Project Basics")
         
-        # README.md tab
         readme_tab = self.create_readme_tab()
-        tabs.addTab(readme_tab, "README.md")
+        self.tabs.addTab(readme_tab, "README.md")
         
-        # Advanced settings tab
         advanced_tab = self.create_advanced_tab()
-        tabs.addTab(advanced_tab, "Advanced Settings")
+        self.tabs.addTab(advanced_tab, "Advanced Settings")
         
-        # Scaffold tab
         scaffold_tab = self.create_scaffold_tab()
-        tabs.addTab(scaffold_tab, "Project Scaffold")
-        
-        # Progress and actions
-        self.create_progress_section(main_layout)
+        self.tabs.addTab(scaffold_tab, "Project Scaffold")
     
     def create_basic_tab(self) -> QWidget:
-        """Create the basic settings tab with help pane"""
-        widget = QWidget()
-        main_layout = QHBoxLayout(widget)
+        """Create the basic settings tab by loading .ui file"""
+        widget = load_ui("basic_tab.ui", self)
         
-        # Left panel - Settings
-        left_panel = QWidget()
-        left_layout = QVBoxLayout(left_panel)
+        # Find all widgets from the loaded UI
+        self.repo_name_edit = widget.findChild(QLineEdit, "repo_name_edit")
+        self.description_edit = widget.findChild(QLineEdit, "description_edit")
+        self.visibility_public_radio = widget.findChild(QRadioButton, "visibility_public_radio")
+        self.visibility_private_radio = widget.findChild(QRadioButton, "visibility_private_radio")
+        self.license_none_radio = widget.findChild(QRadioButton, "license_none_radio")
+        self.license_mit_radio = widget.findChild(QRadioButton, "license_mit_radio")
+        self.license_apache_radio = widget.findChild(QRadioButton, "license_apache_radio")
+        self.license_gpl_radio = widget.findChild(QRadioButton, "license_gpl_radio")
+        self.project_type_other_radio = widget.findChild(QRadioButton, "project_type_other_radio")
+        self.project_type_python_lib_radio = widget.findChild(QRadioButton, "project_type_python_lib_radio")
+        self.project_type_python_cli_radio = widget.findChild(QRadioButton, "project_type_python_cli_radio")
+        self.project_type_js_radio = widget.findChild(QRadioButton, "project_type_js_radio")
+        self.project_type_web_radio = widget.findChild(QRadioButton, "project_type_web_radio")
+        self.project_type_data_radio = widget.findChild(QRadioButton, "project_type_data_radio")
+        self.project_type_docs_radio = widget.findChild(QRadioButton, "project_type_docs_radio")
+        self.gitignore_combo = widget.findChild(QComboBox, "gitignore_combo")
+        self.topics_edit = widget.findChild(QLineEdit, "topics_edit")
+        self.help_browser = widget.findChild(QTextBrowser, "help_browser")
         
-        # Repository information group
-        repo_group = QGroupBox("Repository Information")
-        repo_layout = QFormLayout(repo_group)
+        # Configure widgets (gitignore_combo already has "None" from .ui file)
+        self.gitignore_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         
-        self.repo_name_edit = QLineEdit()
-        self.repo_name_edit.setPlaceholderText("Repository name")
-        self.repo_name_edit.textChanged.connect(self.update_scaffold_tree)
-
-        repo_layout.addRow("Repository Name:", self.repo_name_edit)
-        
-        self.description_edit = QLineEdit()
-        self.description_edit.setPlaceholderText("Repository description (optional)")
-
-        repo_layout.addRow("Description:", self.description_edit)
-        
-        left_layout.addWidget(repo_group)
-        
-        # Visibility group with radio buttons
-        visibility_group = QGroupBox("Visibility")
-        visibility_layout = QVBoxLayout(visibility_group)
-        
-        self.visibility_public_radio = QRadioButton("Public")
-        self.visibility_public_radio.setChecked(True)
-        self.visibility_public_radio.toggled.connect(self.on_visibility_changed)
-        self.visibility_private_radio = QRadioButton("Private")
-        self.visibility_private_radio.toggled.connect(self.on_visibility_changed)
-        
-        visibility_layout.addWidget(self.visibility_public_radio)
-        visibility_layout.addWidget(self.visibility_private_radio)
-        
-        # Set tab order within visibility group
+        # Set tab order within groups
         self.setTabOrder(self.visibility_public_radio, self.visibility_private_radio)
-        
-        left_layout.addWidget(visibility_group)
-        
-        # License group with radio buttons
-        license_group = QGroupBox("License")
-        license_layout = QVBoxLayout(license_group)
-        
-        self.license_none_radio = QRadioButton("None")
-        self.license_none_radio.toggled.connect(self.on_license_changed)
-        self.license_mit_radio = QRadioButton("MIT License")
-        self.license_mit_radio.setChecked(True)
-        self.license_mit_radio.toggled.connect(self.on_license_changed)
-        
-        self.license_apache_radio = QRadioButton("Apache 2.0 License")
-        self.license_apache_radio.toggled.connect(self.on_license_changed)
-        
-        self.license_gpl_radio = QRadioButton("GPL 3.0 License")
-        self.license_gpl_radio.toggled.connect(self.on_license_changed)
-        
-        license_layout.addWidget(self.license_none_radio)
-        license_layout.addWidget(self.license_mit_radio)
-        license_layout.addWidget(self.license_apache_radio)
-        license_layout.addWidget(self.license_gpl_radio)
-        
-        # Set tab order within license group
         self.setTabOrder(self.license_none_radio, self.license_mit_radio)
         self.setTabOrder(self.license_mit_radio, self.license_apache_radio)
         self.setTabOrder(self.license_apache_radio, self.license_gpl_radio)
-        
-        left_layout.addWidget(license_group)
-        
-        # Project type group with radio buttons
-        project_type_group = QGroupBox("Project Type")
-        project_type_layout = QVBoxLayout(project_type_group)
-        
-        self.project_type_other_radio = QRadioButton("Other")
-        self.project_type_other_radio.setChecked(True)
-        self.project_type_other_radio.toggled.connect(self.on_project_type_changed)
-        
-        self.project_type_python_lib_radio = QRadioButton("Python Library")
-        self.project_type_python_lib_radio.toggled.connect(self.on_project_type_changed)
-        self.project_type_python_cli_radio = QRadioButton("Python CLI Tool")
-        self.project_type_python_cli_radio.toggled.connect(self.on_project_type_changed)
-        
-        self.project_type_js_radio = QRadioButton("JavaScript/Node.js Package")
-        self.project_type_js_radio.toggled.connect(self.on_project_type_changed)
-        
-        self.project_type_web_radio = QRadioButton("Web Application")
-        self.project_type_web_radio.toggled.connect(self.on_project_type_changed)
-        
-        self.project_type_data_radio = QRadioButton("Data Science Project")
-        self.project_type_data_radio.toggled.connect(self.on_project_type_changed)
-        
-        self.project_type_docs_radio = QRadioButton("Documentation Site")
-        self.project_type_docs_radio.toggled.connect(self.on_project_type_changed)
-        
-        project_type_layout.addWidget(self.project_type_other_radio)
-        project_type_layout.addWidget(self.project_type_python_lib_radio)
-        project_type_layout.addWidget(self.project_type_python_cli_radio)
-        project_type_layout.addWidget(self.project_type_js_radio)
-        project_type_layout.addWidget(self.project_type_web_radio)
-        project_type_layout.addWidget(self.project_type_data_radio)
-        project_type_layout.addWidget(self.project_type_docs_radio)
-        
-        # Set tab order within project type group
         self.setTabOrder(self.project_type_other_radio, self.project_type_python_lib_radio)
         self.setTabOrder(self.project_type_python_lib_radio, self.project_type_python_cli_radio)
         self.setTabOrder(self.project_type_python_cli_radio, self.project_type_js_radio)
@@ -939,68 +873,23 @@ class RepoSparkGUI(QMainWindow):
         self.setTabOrder(self.project_type_web_radio, self.project_type_data_radio)
         self.setTabOrder(self.project_type_data_radio, self.project_type_docs_radio)
         
-        left_layout.addWidget(project_type_group)
-        
-        # Gitignore template group
-        gitignore_group = QGroupBox("Gitignore Template")
-        gitignore_layout = QVBoxLayout(gitignore_group)
-        
-        self.gitignore_combo = QComboBox()
-        self.gitignore_combo.addItem("None")
-        self.gitignore_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        # Wire up signals
+        self.repo_name_edit.textChanged.connect(self.update_scaffold_tree)
+        self.visibility_public_radio.toggled.connect(self.on_visibility_changed)
+        self.visibility_private_radio.toggled.connect(self.on_visibility_changed)
+        self.license_none_radio.toggled.connect(self.on_license_changed)
+        self.license_mit_radio.toggled.connect(self.on_license_changed)
+        self.license_apache_radio.toggled.connect(self.on_license_changed)
+        self.license_gpl_radio.toggled.connect(self.on_license_changed)
+        self.project_type_other_radio.toggled.connect(self.on_project_type_changed)
+        self.project_type_python_lib_radio.toggled.connect(self.on_project_type_changed)
+        self.project_type_python_cli_radio.toggled.connect(self.on_project_type_changed)
+        self.project_type_js_radio.toggled.connect(self.on_project_type_changed)
+        self.project_type_web_radio.toggled.connect(self.on_project_type_changed)
+        self.project_type_data_radio.toggled.connect(self.on_project_type_changed)
+        self.project_type_docs_radio.toggled.connect(self.on_project_type_changed)
         self.gitignore_combo.currentTextChanged.connect(self.update_help_info)
         self.gitignore_combo.currentTextChanged.connect(self.on_gitignore_changed)
-        
-        gitignore_layout.addWidget(self.gitignore_combo)
-        
-        # Set tab order from project type to gitignore immediately after creation
-        self.setTabOrder(self.project_type_docs_radio, self.gitignore_combo)
-        
-        left_layout.addWidget(gitignore_group)
-        
-
-        
-        # Topics group
-        topics_group = QGroupBox("Topics")
-        topics_layout = QVBoxLayout(topics_group)
-        
-        self.topics_edit = QLineEdit()
-        self.topics_edit.setPlaceholderText("Comma-separated topics (e.g., python, gui, qt)")
-
-        topics_layout.addWidget(self.topics_edit)
-        
-        # Set tab order from gitignore to topics immediately after creation
-        self.setTabOrder(self.gitignore_combo, self.topics_edit)
-        
-        left_layout.addWidget(topics_group)
-        
-        left_layout.addStretch()
-        
-        # Right panel - Help Information
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
-        
-        help_label = QLabel("ℹ️ Information & Help")
-        help_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 10px;")
-        right_layout.addWidget(help_label)
-        
-        self.help_browser = QTextBrowser()
-        self.help_browser.setMaximumWidth(400)
-        self.help_browser.setStyleSheet("""
-            QTextBrowser {
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 6px;
-                padding: 15px;
-                font-size: 12px;
-                line-height: 1.4;
-            }
-        """)
-        right_layout.addWidget(self.help_browser)
-        
-        # Add panels to main layout
-        main_layout.addWidget(left_panel, 2)
-        main_layout.addWidget(right_panel, 1)
         
         # Initialize focus tracking
         self.current_focus_section = ""
@@ -1010,177 +899,88 @@ class RepoSparkGUI(QMainWindow):
         self.focus_timer.timeout.connect(self.check_focus)
         self.focus_timer.start(100)  # Check every 100ms
         
-        # Tab order is set within each group above
-        # Cross-group tab order is handled automatically by Qt's focus system
-        
         # Initialize help content
         self.update_help_info()
         
         return widget
     
     def create_advanced_tab(self) -> QWidget:
-        """Create the advanced settings tab"""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
+        """Create the advanced settings tab by loading .ui file"""
+        widget = load_ui("advanced_tab.ui", self)
         
-        # Remote type group
-        remote_group = QGroupBox("Remote Type")
-        remote_layout = QVBoxLayout(remote_group)
+        # Find widgets from the loaded UI
+        self.remote_https_radio = widget.findChild(QRadioButton, "remote_https_radio")
+        self.remote_ssh_radio = widget.findChild(QRadioButton, "remote_ssh_radio")
+        self.open_browser_check = widget.findChild(QCheckBox, "open_browser_check")
         
+        # Create button group for remote type
         self.remote_button_group = QButtonGroup()
-        self.remote_https_radio = QRadioButton("HTTPS")
-        self.remote_ssh_radio = QRadioButton("SSH")
-        
-        self.remote_https_radio.setChecked(True)
-        
         self.remote_button_group.addButton(self.remote_https_radio)
         self.remote_button_group.addButton(self.remote_ssh_radio)
         
-        remote_layout.addWidget(self.remote_https_radio)
-        remote_layout.addWidget(self.remote_ssh_radio)
-        
-        layout.addWidget(remote_group)
-        
-        # Options group
-        options_group = QGroupBox("Options")
-        options_layout = QVBoxLayout(options_group)
-        
-        self.open_browser_check = QCheckBox("Open repository in browser after creation")
-        self.open_browser_check.setChecked(False)
-        options_layout.addWidget(self.open_browser_check)
-        
-        layout.addWidget(options_group)
-        
-        layout.addStretch()
         return widget
     
     def create_scaffold_tab(self) -> QWidget:
-        """Create the project scaffold tab"""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
+        """Create the project scaffold tab by loading .ui file"""
+        widget = load_ui("scaffold_tab.ui", self)
         
-        # Scaffold options group
-        scaffold_group = QGroupBox("Project Scaffold")
-        scaffold_layout = QVBoxLayout(scaffold_group)
+        # Find widgets from the loaded UI
+        self.create_scaffold_check = widget.findChild(QCheckBox, "create_scaffold_check")
+        self.create_editorconfig_check = widget.findChild(QCheckBox, "create_editorconfig_check")
         
-        self.create_scaffold_check = QCheckBox("Create standard project scaffold")
-        self.create_scaffold_check.setChecked(True)
+        # Add custom FolderTreeWidget to the preview layout
+        preview_group = widget.findChild(QGroupBox, "preview_group")
+        if preview_group:
+            preview_layout = preview_group.layout()
+            if preview_layout:
+                self.scaffold_tree = FolderTreeWidget()
+                self.scaffold_tree.setMinimumHeight(300)
+                preview_layout.addWidget(self.scaffold_tree)
+        else:
+            # Fallback: create custom widget directly
+            self.scaffold_tree = FolderTreeWidget()
+            self.scaffold_tree.setMinimumHeight(300)
+        
+        # Wire up signals
         self.create_scaffold_check.toggled.connect(self.update_scaffold_tree)
-        scaffold_layout.addWidget(self.create_scaffold_check)
-        
-        self.create_editorconfig_check = QCheckBox("Create .editorconfig file")
-        self.create_editorconfig_check.setChecked(True)
         self.create_editorconfig_check.toggled.connect(self.update_scaffold_tree)
-        scaffold_layout.addWidget(self.create_editorconfig_check)
-        
-        # Scaffold preview
-        preview_group = QGroupBox("Project Structure Preview")
-        preview_layout = QVBoxLayout(preview_group)
-        
-        # Create the folder tree widget
-        self.scaffold_tree = FolderTreeWidget()
-        self.scaffold_tree.setMinimumHeight(300)
-        preview_layout.addWidget(self.scaffold_tree)
         
         # Update the tree initially
         self.update_scaffold_tree()
         
-        layout.addWidget(scaffold_group)
-        layout.addWidget(preview_group)
-        
-        layout.addStretch()
         return widget
     
     def create_readme_tab(self) -> QWidget:
-        """Create the README.md customization tab"""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
+        """Create the README.md customization tab by loading .ui file"""
+        widget = load_ui("readme_tab.ui", self)
         
-        # Template controls
-        controls_group = QGroupBox("README Template")
-        controls_layout = QHBoxLayout(controls_group)
+        # Find widgets from the loaded UI
+        self.template_selector = widget.findChild(QComboBox, "template_selector")
+        self.regenerate_readme_btn = widget.findChild(QPushButton, "regenerate_readme_btn")
+        self.readme_editor = widget.findChild(QTextEdit, "readme_editor")
+        self.readme_preview = widget.findChild(QTextEdit, "readme_preview")
+        splitter = widget.findChild(QSplitter, "splitter")
         
-        # Template selector
-        self.template_selector = QComboBox()
+        # Configure widgets
         self.template_selector.addItems([
             "Auto-generate from project type",
             "Custom template",
             "Minimal template"
         ])
-        self.template_selector.currentTextChanged.connect(self.update_readme_preview)
-        controls_layout.addWidget(QLabel("Template:"))
-        controls_layout.addWidget(self.template_selector)
-        
-        # Regenerate button
-        self.regenerate_readme_btn = QPushButton("Regenerate")
-        self.regenerate_readme_btn.clicked.connect(self.update_readme_preview)
-        controls_layout.addWidget(self.regenerate_readme_btn)
-        
-        layout.addWidget(controls_group)
-        
-        # Splitter for editor and preview
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        
-        # Editor panel
-        editor_frame = QFrame()
-        editor_layout = QVBoxLayout(editor_frame)
-        
-        editor_label = QLabel("README.md Content:")
-        editor_layout.addWidget(editor_label)
-        
-        self.readme_editor = QTextEdit()
         self.readme_editor.setFont(QFont("Monaco", 10))
-        self.readme_editor.textChanged.connect(self.on_readme_editor_changed)
-        editor_layout.addWidget(self.readme_editor)
-        
-        splitter.addWidget(editor_frame)
-        
-        # Preview panel
-        preview_frame = QFrame()
-        preview_layout = QVBoxLayout(preview_frame)
-        
-        preview_label = QLabel("Preview:")
-        preview_layout.addWidget(preview_label)
-        
-        self.readme_preview = QTextEdit()
-        self.readme_preview.setReadOnly(True)
         self.readme_preview.setMaximumWidth(400)
-        preview_layout.addWidget(self.readme_preview)
-        
-        splitter.addWidget(preview_frame)
         
         # Set splitter proportions
-        splitter.setSizes([600, 400])
+        if splitter:
+            splitter.setSizes([600, 400])
         
-        layout.addWidget(splitter)
+        # Wire up signals
+        self.template_selector.currentTextChanged.connect(self.update_readme_preview)
+        self.regenerate_readme_btn.clicked.connect(self.update_readme_preview)
+        self.readme_editor.textChanged.connect(self.on_readme_editor_changed)
         
         return widget
     
-    def create_progress_section(self, main_layout: QVBoxLayout):
-        """Create the progress and action buttons section"""
-        # Progress bar
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        main_layout.addWidget(self.progress_bar)
-        
-        # Status label
-        self.status_label = QLabel("Ready to create repository")
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(self.status_label)
-        
-        # Buttons
-        button_layout = QHBoxLayout()
-        
-        self.create_button = QPushButton("Create Repository")
-        self.create_button.clicked.connect(self.create_repository)
-        button_layout.addWidget(self.create_button)
-        
-        self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.clicked.connect(self.cancel_operation)
-        self.cancel_button.setEnabled(False)
-        button_layout.addWidget(self.cancel_button)
-        
-        main_layout.addLayout(button_layout)
     
     def load_defaults(self) -> None:
         """Load default values"""
@@ -1210,8 +1010,8 @@ class RepoSparkGUI(QMainWindow):
             "TypeScript"
         ]
         
-        # Combine and sort all templates
-        all_templates = ["None"] + sorted(templates + custom_templates)
+        # Combine and sort all templates (skip "None" as it's already in the combo from .ui file)
+        all_templates = sorted(templates + custom_templates)
         
         for template in all_templates:
             self.gitignore_combo.addItem(template)
@@ -1408,7 +1208,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }}
                     h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
                     p {{ margin: 8px 0; line-height: 1.4; }}
                     ul {{ margin: 8px 0; padding-left: 20px; }}
@@ -1434,7 +1234,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1463,7 +1263,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }}
                     h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
                     p {{ margin: 8px 0; line-height: 1.4; }}
                     ul {{ margin: 8px 0; padding-left: 20px; }}
@@ -1490,7 +1290,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1519,7 +1319,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1545,7 +1345,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1574,7 +1374,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1600,7 +1400,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1626,7 +1426,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1652,7 +1452,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1681,7 +1481,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1707,7 +1507,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1733,7 +1533,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1759,7 +1559,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1785,7 +1585,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1811,7 +1611,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1837,7 +1637,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1871,7 +1671,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -1900,7 +1700,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }}
                     h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
                     p {{ margin: 8px 0; line-height: 1.4; }}
                     ul {{ margin: 8px 0; padding-left: 20px; }}
@@ -1949,7 +1749,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }}
                     h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
                     p {{ margin: 8px 0; line-height: 1.4; }}
                     ul {{ margin: 8px 0; padding-left: 20px; }}
@@ -1999,7 +1799,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }}
                     h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
                     p {{ margin: 8px 0; line-height: 1.4; }}
                     ul {{ margin: 8px 0; padding-left: 20px; }}
@@ -2025,7 +1825,7 @@ class RepoSparkGUI(QMainWindow):
             <html>
             <head>
                 <style>
-                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
                     h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
                     p { margin: 8px 0; line-height: 1.4; }
                     ul { margin: 8px 0; padding-left: 20px; }
@@ -2376,7 +2176,7 @@ This project is licensed under the {self.license_combo.currentText()} License.
                 <style>
                     /* GitHub-style CSS */
                     body {{
-                        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
                         font-size: 14px;
                         line-height: 1.5;
                         color: #24292f;

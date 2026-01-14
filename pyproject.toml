@@ -37,6 +37,9 @@ qt_api = "pyside6"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
+include = [
+    "src/repospark/assets/**/*.ui",
+]
 
 [build-system]
 requires = ["hatchling"]
