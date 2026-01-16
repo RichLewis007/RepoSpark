@@ -422,110 +422,126 @@ class RepositoryWorker(QThread):
                 self.finished.emit(False, "Operation cancelled")
                 return
             
-            # Check if directory is empty and create scaffold if needed
-            if self.config.get('create_scaffold', False):
+            # Change to repository location directory
+            repo_location = self.config.get('repo_location', os.getcwd())
+            if not os.path.exists(repo_location):
+                os.makedirs(repo_location, exist_ok=True)
+            
+            # Store original directory to restore later
+            original_cwd = os.getcwd()
+            os.chdir(repo_location)
+            
+            try:
+                # Check if directory is empty and create scaffold if needed
+                if self.config.get('create_scaffold', False):
+                    if self._should_stop:
+                        self.finished.emit(False, "Operation cancelled")
+                        return
+                    self.progress.emit("Creating project scaffold...")
+                    ScaffoldGenerator.create_scaffold(
+                        self.config['repo_name'],
+                        self.config.get('create_editorconfig', True),
+                        self.config.get('readme_content', '')
+                    )
+                
+                # Handle custom gitignore templates
+                gitignore_template = self.config.get('gitignore_template', '')
+                custom_gitignore_templates = [
+                    "C++", "C#", "Dart", "Go", "Java", "JavaScript", 
+                    "Kotlin", "PHP", "R", "Ruby", "Rust", "Scala", "Swift", "TypeScript"
+                ]
+                
+                # Create GitHub repository
                 if self._should_stop:
                     self.finished.emit(False, "Operation cancelled")
                     return
-                self.progress.emit("Creating project scaffold...")
-                ScaffoldGenerator.create_scaffold(
+                self.progress.emit("Creating GitHub repository...")
+                if not GitHubAPI.create_repository(
                     self.config['repo_name'],
-                    self.config.get('create_editorconfig', True),
-                    self.config.get('readme_content', '')
-                )
-            
-            # Handle custom gitignore templates
-            gitignore_template = self.config.get('gitignore_template', '')
-            custom_gitignore_templates = [
-                "C++", "C#", "Dart", "Go", "Java", "JavaScript", 
-                "Kotlin", "PHP", "R", "Ruby", "Rust", "Scala", "Swift", "TypeScript"
-            ]
-            
-            # Create GitHub repository
-            if self._should_stop:
-                self.finished.emit(False, "Operation cancelled")
-                return
-            self.progress.emit("Creating GitHub repository...")
-            if not GitHubAPI.create_repository(
-                self.config['repo_name'],
-                self.config['visibility'],
-                self.config.get('description', ''),
-                gitignore_template if gitignore_template not in custom_gitignore_templates else "",
-                self.config.get('license', '')
-            ):
-                self.finished.emit(False, "Failed to create GitHub repository")
-                return
-            
-            # Create custom gitignore file if needed (before git init)
-            if self._should_stop:
-                self.finished.emit(False, "Operation cancelled")
-                return
-            if gitignore_template in custom_gitignore_templates:
-                self.progress.emit(f"Creating custom .gitignore for {gitignore_template}...")
-                self._create_custom_gitignore(gitignore_template)
-            elif gitignore_template and gitignore_template not in custom_gitignore_templates:
-                # For GitHub templates, we need to fetch the .gitignore from the created repo
-                # or create it locally before git add
-                self.progress.emit(f"Fetching .gitignore template for {gitignore_template}...")
-                self._fetch_gitignore_template(gitignore_template)
-            
-            # Initialize git if needed
-            if self._should_stop:
-                self.finished.emit(False, "Operation cancelled")
-                return
-            if not os.path.exists('.git'):
-                self.progress.emit("Initializing git repository...")
-                if not GitOperations.init_repository():
-                    self.finished.emit(False, "Failed to initialize git repository")
+                    self.config['visibility'],
+                    self.config.get('description', ''),
+                    gitignore_template if gitignore_template not in custom_gitignore_templates else "",
+                    self.config.get('license', '')
+                ):
+                    self.finished.emit(False, "Failed to create GitHub repository")
                     return
-            
-            # Add and commit files
-            if self._should_stop:
-                self.finished.emit(False, "Operation cancelled")
-                return
-            self.progress.emit("Adding and committing files...")
-            if not GitOperations.add_and_commit():
-                self.finished.emit(False, "Failed to add and commit files")
-                return
-            
-            # Add remote
-            if self._should_stop:
-                self.finished.emit(False, "Operation cancelled")
-                return
-            self.progress.emit("Adding remote origin...")
-            if not GitOperations.add_remote(
-                self.config['username'],
-                self.config['repo_name'],
-                self.config.get('remote_type', 'https')
-            ):
-                self.finished.emit(False, "Failed to add remote origin")
-                return
-            
-            # Push to GitHub
-            if self._should_stop:
-                self.finished.emit(False, "Operation cancelled")
-                return
-            self.progress.emit("Pushing to GitHub...")
-            if not GitOperations.push_to_remote():
-                self.finished.emit(False, "Failed to push to GitHub")
-                return
-            
-            # Set topics
-            if self._should_stop:
-                self.finished.emit(False, "Operation cancelled")
-                return
-            if self.config.get('topics'):
-                self.progress.emit("Setting repository topics...")
-                if not GitHubAPI.set_topics(
+                
+                # Create custom gitignore file if needed (before git init)
+                if self._should_stop:
+                    self.finished.emit(False, "Operation cancelled")
+                    return
+                if gitignore_template in custom_gitignore_templates:
+                    self.progress.emit(f"Creating custom .gitignore for {gitignore_template}...")
+                    self._create_custom_gitignore(gitignore_template)
+                elif gitignore_template and gitignore_template not in custom_gitignore_templates:
+                    # For GitHub templates, we need to fetch the .gitignore from the created repo
+                    # or create it locally before git add
+                    self.progress.emit(f"Fetching .gitignore template for {gitignore_template}...")
+                    self._fetch_gitignore_template(gitignore_template)
+                
+                # Initialize git if needed
+                if self._should_stop:
+                    self.finished.emit(False, "Operation cancelled")
+                    return
+                if not os.path.exists('.git'):
+                    self.progress.emit("Initializing git repository...")
+                    if not GitOperations.init_repository():
+                        self.finished.emit(False, "Failed to initialize git repository")
+                        return
+                
+                # Add and commit files
+                if self._should_stop:
+                    self.finished.emit(False, "Operation cancelled")
+                    return
+                self.progress.emit("Adding and committing files...")
+                if not GitOperations.add_and_commit():
+                    self.finished.emit(False, "Failed to add and commit files")
+                    return
+                
+                # Add remote
+                if self._should_stop:
+                    self.finished.emit(False, "Operation cancelled")
+                    return
+                self.progress.emit("Adding remote origin...")
+                if not GitOperations.add_remote(
                     self.config['username'],
                     self.config['repo_name'],
-                    self.config['topics']
+                    self.config.get('remote_type', 'https')
                 ):
-                    self.progress.emit("Warning: Failed to set topics")
-            
-            self.finished.emit(True, "Repository created successfully!")
-            
+                    self.finished.emit(False, "Failed to add remote origin")
+                    return
+                
+                # Push to GitHub
+                if self._should_stop:
+                    self.finished.emit(False, "Operation cancelled")
+                    return
+                self.progress.emit("Pushing to GitHub...")
+                if not GitOperations.push_to_remote():
+                    self.finished.emit(False, "Failed to push to GitHub")
+                    return
+                
+                # Set topics
+                if self._should_stop:
+                    self.finished.emit(False, "Operation cancelled")
+                    return
+                if self.config.get('topics'):
+                    self.progress.emit("Setting repository topics...")
+                    if not GitHubAPI.set_topics(
+                        self.config['username'],
+                        self.config['repo_name'],
+                        self.config['topics']
+                    ):
+                        self.progress.emit("Warning: Failed to set topics")
+                
+                self.finished.emit(True, f"Repository '{self.config['repo_name']}' created successfully!")
+            except Exception as e:
+                logger.error(f"Error creating repository: {str(e)}")
+                self.finished.emit(False, f"Error: {str(e)}")
+            finally:
+                # Restore original directory
+                os.chdir(original_cwd)
         except Exception as e:
+            logger.error(f"Error in repository creation: {str(e)}")
             self.finished.emit(False, f"Error: {str(e)}")
     
     def _create_custom_gitignore(self, template_name: str) -> None:
@@ -1140,6 +1156,8 @@ class RepoSparkGUI(QMainWindow):
         widget = load_ui("basic_tab.ui", self)
         
         # Find all widgets from the loaded UI
+        self.repo_location_edit = widget.findChild(QLineEdit, "repo_location_edit")
+        self.browse_location_btn = widget.findChild(QPushButton, "browse_location_btn")
         self.repo_name_edit = widget.findChild(QLineEdit, "repo_name_edit")
         self.description_edit = widget.findChild(QLineEdit, "description_edit")
         self.visibility_public_radio = widget.findChild(QRadioButton, "visibility_public_radio")
@@ -1175,6 +1193,7 @@ class RepoSparkGUI(QMainWindow):
         self.setTabOrder(self.project_type_data_radio, self.project_type_docs_radio)
         
         # Wire up signals
+        self.browse_location_btn.clicked.connect(self.browse_repository_location)
         self.repo_name_edit.textChanged.connect(self.update_scaffold_tree)
         self.visibility_public_radio.toggled.connect(self.on_visibility_changed)
         self.visibility_private_radio.toggled.connect(self.on_visibility_changed)
@@ -1285,8 +1304,18 @@ class RepoSparkGUI(QMainWindow):
     
     def load_defaults(self) -> None:
         """Load default values"""
-        # Set default repository name from current directory
-        default_name = os.path.basename(os.getcwd())
+        # Set default repository location to ~/dev
+        default_location = os.path.expanduser("~/dev")
+        os.makedirs(default_location, exist_ok=True)
+        
+        self.repo_location_edit.setText(default_location)
+        
+        # Set default repository name from current directory if run from command line
+        # Otherwise, use empty string (user will need to enter it)
+        if sys.stdin.isatty():
+            default_name = os.path.basename(os.getcwd())
+        else:
+            default_name = ""
         self.repo_name_edit.setText(default_name)
         
         # Load gitignore templates
@@ -1320,6 +1349,26 @@ class RepoSparkGUI(QMainWindow):
         # Initialize README preview
         self.update_readme_preview()
     
+    def browse_repository_location(self) -> None:
+        """
+        Open a directory dialog to select repository location.
+        
+        Updates the repository location field with the selected path.
+        """
+        current_path = self.repo_location_edit.text().strip()
+        if not current_path or not os.path.exists(current_path):
+            current_path = os.path.expanduser("~")
+        
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            "Select Repository Location",
+            current_path,
+            QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontResolveSymlinks
+        )
+        
+        if directory:
+            self.repo_location_edit.setText(directory)
+    
     def validate_inputs(self) -> Tuple[bool, str]:
         """
         Validate user inputs including repository name, description, and topics.
@@ -1327,6 +1376,23 @@ class RepoSparkGUI(QMainWindow):
         Returns:
             Tuple of (is_valid, error_message). If valid, error_message is empty string.
         """
+        # Validate repository location
+        repo_location = self.repo_location_edit.text().strip()
+        if not repo_location:
+            return False, "Repository location is required"
+        
+        # Check if location is a valid path
+        if not os.path.isabs(repo_location):
+            # Make it absolute
+            repo_location = os.path.abspath(repo_location)
+            self.repo_location_edit.setText(repo_location)
+        
+        # Create directory if it doesn't exist
+        try:
+            os.makedirs(repo_location, exist_ok=True)
+        except OSError as e:
+            return False, f"Cannot create repository location: {str(e)}"
+        
         repo_name = self.repo_name_edit.text().strip()
         if not repo_name:
             return False, "Repository name is required"
@@ -2866,6 +2932,7 @@ This project is licensed under the {self.license_combo.currentText()} License.
 
 Repository Details:
 • Name: {config['repo_name']}
+• Location: {config['repo_location']}
 • Visibility: {config['visibility']}
 • Description: {config['description'] or 'None'}
 • Gitignore: {config['gitignore_template'] or 'None'}

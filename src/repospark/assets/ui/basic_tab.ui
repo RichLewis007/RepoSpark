@@ -15,6 +15,29 @@
     <widget class="QWidget" name="left_panel">
      <layout class="QVBoxLayout" name="left_layout">
       <item>
+       <widget class="QGroupBox" name="location_group">
+        <property name="title">
+         <string>Repository Location</string>
+        </property>
+        <layout class="QHBoxLayout" name="location_layout">
+         <item>
+          <widget class="QLineEdit" name="repo_location_edit">
+           <property name="placeholderText">
+            <string>Path where repository will be created</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="browse_location_btn">
+           <property name="text">
+            <string>Browse...</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
        <widget class="QGroupBox" name="repo_group">
         <property name="title">
          <string>Repository Information</string>
