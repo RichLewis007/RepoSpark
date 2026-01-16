@@ -9,6 +9,7 @@ License: MIT
 """
 
 import contextlib
+import html
 import json
 import logging
 import os
@@ -26,6 +27,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QFileDialog,
+    QGridLayout,
     QGroupBox,
     QLabel,
     QLineEdit,
@@ -34,6 +36,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QRadioButton,
+    QScrollArea,
     QSplitter,
     QTabWidget,
     QTextBrowser,
@@ -57,32 +60,33 @@ logger = logging.getLogger(__name__)
 
 class RepoSparkGUI(QMainWindow):
     """Main GUI window for RepoSpark application"""
-
+    
     def __init__(self):
         super().__init__()
         self.worker = None
         self.focus_timer = None
         self.location_validation_timer = None
         self.current_config = None  # Store config for use after worker completes
-
+        self.gitignore_template_cache = {}  # Cache for gitignore template samples
+        
         # Register custom widgets for QUiLoader
         register_custom_widget("FolderTreeWidget", FolderTreeWidget)
-
+        
         self.init_ui()
         self.load_defaults()
-
+    
     def _find_widget(self, parent: QWidget, widget_type: type[T], name: str) -> T:
         """
         Helper method to find a widget and raise an error if not found.
-
+        
         Args:
             parent: Parent widget to search in
             widget_type: Type of widget to find
             name: Name of the widget
-
+            
         Returns:
             The found widget (never None)
-
+            
         Raises:
             RuntimeError: If widget is not found
         """
@@ -98,20 +102,20 @@ class RepoSparkGUI(QMainWindow):
     ) -> dict[str, QWidget]:
         """
         Find multiple widgets at once and validate they all exist.
-
+        
         This method reduces code duplication and provides consistent error handling
         when validating multiple widgets from a loaded UI file.
-
+        
         Args:
             parent: Parent widget to search in
             widget_specs: List of tuples containing (widget_type, widget_name)
-
+            
         Returns:
             Dictionary mapping widget names to found widgets
-
+            
         Raises:
             RuntimeError: If any widget is not found (includes list of all missing widgets)
-
+            
         Example:
             >>> widgets = self._find_widgets(central_widget, [
             ...     (QTabWidget, "tabs"),
@@ -123,34 +127,34 @@ class RepoSparkGUI(QMainWindow):
         """
         widgets = {}
         missing = []
-
+        
         for widget_type, name in widget_specs:
             widget = parent.findChild(widget_type, name)
             if widget is None:
                 missing.append(f"'{name}' ({widget_type.__name__})")
             else:
                 widgets[name] = widget
-
+        
         if missing:
             missing_list = ", ".join(missing)
             raise RuntimeError(f"Required widgets not found in UI file: {missing_list}")
-
+        
         return widgets
-
+    
     def _create_fallback_ui(self) -> QWidget:
         """
         Create a minimal fallback UI when .ui files cannot be loaded.
-
+        
         This provides basic functionality even when UI files are missing or corrupted.
-
+        
         Returns:
             QWidget: A minimal central widget with basic controls
         """
         logger.warning("Creating fallback UI due to .ui file loading failure")
-
+        
         fallback_widget = QWidget()
         layout = QVBoxLayout(fallback_widget)
-
+        
         # Add error message
         error_label = QLabel(
             "⚠️ UI Loading Error\n\n"
@@ -162,18 +166,18 @@ class RepoSparkGUI(QMainWindow):
         error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         error_label.setStyleSheet("color: #d73a49; font-size: 14px; padding: 20px;")
         layout.addWidget(error_label)
-
+        
         # Add basic controls
         self.repo_name_edit = QLineEdit()
         self.repo_name_edit.setPlaceholderText("Repository name")
         layout.addWidget(QLabel("Repository Name:"))
         layout.addWidget(self.repo_name_edit)
-
+        
         self.description_edit = QLineEdit()
         self.description_edit.setPlaceholderText("Description (optional)")
         layout.addWidget(QLabel("Description:"))
         layout.addWidget(self.description_edit)
-
+        
         # Visibility
         visibility_group = QGroupBox("Visibility")
         visibility_layout = QVBoxLayout(visibility_group)
@@ -183,32 +187,32 @@ class RepoSparkGUI(QMainWindow):
         visibility_layout.addWidget(self.visibility_public_radio)
         visibility_layout.addWidget(self.visibility_private_radio)
         layout.addWidget(visibility_group)
-
+        
         # Create button
         self.create_button = QPushButton("Create Repository")
         self.create_button.clicked.connect(self.create_repository)
         layout.addWidget(self.create_button)
-
+        
         # Status label
         self.status_label = QLabel("Ready to create repository")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_label)
-
+        
         # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
-
+        
         # Cancel button
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.setEnabled(False)
         self.cancel_button.clicked.connect(self.cancel_operation)
         layout.addWidget(self.cancel_button)
-
+        
         # Initialize minimal tab widget (empty)
         self.tabs = QTabWidget()
         self.tabs.setVisible(False)  # Hide tabs in fallback mode
-
+        
         # Initialize other required widgets with defaults
         self.gitignore_combo = QComboBox()
         self.gitignore_combo.addItem("None (empty)")
@@ -226,7 +230,7 @@ class RepoSparkGUI(QMainWindow):
         self.readme_editor = QTextEdit()
         self.readme_preview = QTextEdit()
         self.regenerate_readme_btn = QPushButton()
-
+        
         # Initialize radio buttons for license and project type
         self.license_mit_radio = self.visibility_public_radio  # Reuse for compatibility
         self.license_none_radio = self.visibility_private_radio
@@ -239,11 +243,11 @@ class RepoSparkGUI(QMainWindow):
         self.project_type_web_radio = self.visibility_private_radio
         self.project_type_data_radio = self.visibility_private_radio
         self.project_type_docs_radio = self.visibility_private_radio
-
+        
         layout.addStretch()
-
+        
         return fallback_widget
-
+    
     def init_ui(self):
         """Initialize the user interface by loading .ui files"""
         # Set window title with program name and version
@@ -272,7 +276,7 @@ class RepoSparkGUI(QMainWindow):
             self.setGeometry(x_position, y_position, half_width, window_height)
         
         settings.endGroup()
-
+        
         # Load main window UI with fallback
         try:
             central_widget = load_ui("main_window.ui", self)
@@ -281,15 +285,15 @@ class RepoSparkGUI(QMainWindow):
             logger.error(f"Failed to load main window UI: {e}")
             # Show error dialog with fallback option
             reply = QMessageBox.critical(
-                self,
-                "UI Loading Error",
+                self, 
+                "UI Loading Error", 
                 f"Failed to load main window UI:\n{str(e)}\n\n"
                 "Would you like to continue with a minimal fallback interface?\n"
                 "(Some features may not be available)",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
-
+            
             if reply == QMessageBox.StandardButton.Yes:
                 # Create fallback UI
                 central_widget = self._create_fallback_ui()
@@ -303,17 +307,17 @@ class RepoSparkGUI(QMainWindow):
                 )
             else:
                 raise
-
+        
         # Find widgets from the loaded UI using batch validation
         try:
             widgets = self._find_widgets(
                 central_widget,
                 [
-                    (QTabWidget, "tabs"),
-                    (QProgressBar, "progress_bar"),
-                    (QLabel, "status_label"),
-                    (QPushButton, "create_button"),
-                    (QPushButton, "cancel_button"),
+                (QTabWidget, "tabs"),
+                (QProgressBar, "progress_bar"),
+                (QLabel, "status_label"),
+                (QPushButton, "create_button"),
+                (QPushButton, "cancel_button"),
                     (QCheckBox, "open_browser_check"),
                 ],
             )
@@ -333,38 +337,38 @@ class RepoSparkGUI(QMainWindow):
                 f"Failed to find required widgets:\n{str(e)}\n\nPlease check the .ui files.",
             )
             raise
-
+        
         # Set initial state
         self.progress_bar.setVisible(False)
         self.cancel_button.setEnabled(False)
-
+        
         # Wire up signals
         self.create_button.clicked.connect(self.create_repository)
         self.cancel_button.clicked.connect(self.cancel_operation)
-
+        
         # Create menu bar with Help menu
         self._create_menu_bar()
-
+        
         # Load and add tabs
         basic_tab = self.create_basic_tab()
         self.tabs.addTab(basic_tab, "Repo Settings")
 
         project_tab = self.create_project_tab()
         self.tabs.insertTab(1, project_tab, "Project")
-
+        
         readme_tab = self.create_readme_tab()
         self.tabs.addTab(readme_tab, "README.md")
-
+        
         advanced_tab = self.create_advanced_tab()
         self.tabs.addTab(advanced_tab, "GitHub Connection")
-
+        
         scaffold_tab = self.create_scaffold_tab()
         self.tabs.addTab(scaffold_tab, "Project Scaffold")
-
+    
     def create_basic_tab(self) -> QWidget:
         """Create the basic settings tab by loading .ui file"""
         widget = load_ui("basic_tab.ui", self)
-
+        
         # Find all widgets from the loaded UI using type-safe helper
         self.repo_location_edit = self._find_widget(widget, QLineEdit, "repo_location_edit")
         self.browse_location_btn = self._find_widget(widget, QPushButton, "browse_location_btn")
@@ -384,16 +388,13 @@ class RepoSparkGUI(QMainWindow):
         except RuntimeError:
             # help_browser not in basic_tab, will be set in project_tab
             pass
-
-        # Configure widgets (gitignore_combo already has "None" from .ui file)
-        self.gitignore_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-
+        
         # Set tab order within groups
         self.setTabOrder(self.visibility_public_radio, self.visibility_private_radio)
         self.setTabOrder(self.license_none_radio, self.license_mit_radio)
         self.setTabOrder(self.license_mit_radio, self.license_apache_radio)
         self.setTabOrder(self.license_apache_radio, self.license_gpl_radio)
-
+        
         # Wire up signals
         self.browse_location_btn.clicked.connect(self.browse_repository_location)
         self.repo_location_edit.textChanged.connect(self.validate_repository_location)
@@ -426,12 +427,55 @@ class RepoSparkGUI(QMainWindow):
         self.project_type_web_radio = self._find_widget(widget, QPushButton, "project_type_web_radio")
         self.project_type_data_radio = self._find_widget(widget, QPushButton, "project_type_data_radio")
         self.project_type_docs_radio = self._find_widget(widget, QPushButton, "project_type_docs_radio")
-        self.gitignore_combo = self._find_widget(widget, QComboBox, "gitignore_combo")
+        
+        # Find popular languages quick-select buttons
+        self.popular_typescript_btn = self._find_widget(widget, QPushButton, "popular_typescript_btn")
+        self.popular_python_btn = self._find_widget(widget, QPushButton, "popular_python_btn")
+        self.popular_javascript_btn = self._find_widget(widget, QPushButton, "popular_javascript_btn")
+        self.popular_java_btn = self._find_widget(widget, QPushButton, "popular_java_btn")
+        self.popular_csharp_btn = self._find_widget(widget, QPushButton, "popular_csharp_btn")
+        self.popular_rust_btn = self._find_widget(widget, QPushButton, "popular_rust_btn")
+        self.popular_go_btn = self._find_widget(widget, QPushButton, "popular_go_btn")
+        
+        # Connect popular language buttons to selection handler
+        self.popular_typescript_btn.clicked.connect(lambda: self._select_gitignore_template("TypeScript"))
+        self.popular_python_btn.clicked.connect(lambda: self._select_gitignore_template("Python"))
+        self.popular_javascript_btn.clicked.connect(lambda: self._select_gitignore_template("JavaScript"))
+        self.popular_java_btn.clicked.connect(lambda: self._select_gitignore_template("Java"))
+        self.popular_csharp_btn.clicked.connect(lambda: self._select_gitignore_template("C#"))
+        self.popular_rust_btn.clicked.connect(lambda: self._select_gitignore_template("Rust"))
+        self.popular_go_btn.clicked.connect(lambda: self._select_gitignore_template("Go"))
+        
+        # Find gitignore search field
+        self.gitignore_search_edit = self._find_widget(widget, QLineEdit, "gitignore_search_edit")
+        
+        # Find gitignore scroll area and content widget
+        gitignore_scroll_area = self._find_widget(widget, QScrollArea, "gitignore_scroll_area")
+        gitignore_scroll_content = self._find_widget(gitignore_scroll_area, QWidget, "gitignore_scroll_content")
+        gitignore_grid_layout = gitignore_scroll_content.layout()
+        if gitignore_grid_layout is None:
+            gitignore_grid_layout = QGridLayout()
+            gitignore_scroll_content.setLayout(gitignore_grid_layout)
+        
+        # Store references
+        self.gitignore_scroll_area = gitignore_scroll_area
+        self.gitignore_scroll_content = gitignore_scroll_content
+        self.gitignore_grid_layout = gitignore_grid_layout
+        
+        # Create button group for gitignore templates (exclusive - only one can be selected)
+        self.gitignore_button_group = QButtonGroup()
+        self.gitignore_button_group.setExclusive(True)
+        self.gitignore_buttons = {}  # Dictionary to map buttons to template names
+        self.gitignore_all_buttons = {}  # Store all buttons for filtering
+        
+        # Gitignore buttons will be populated in load_defaults()
+        self.selected_gitignore_template = "None (empty)"  # Default
+        
+        # Connect search field to filter function
+        self.gitignore_search_edit.textChanged.connect(self._filter_gitignore_buttons)
+        
         self.topics_edit = self._find_widget(widget, QLineEdit, "topics_edit")
         self.help_browser = self._find_widget(widget, QTextBrowser, "help_browser")
-
-        # Configure widgets (gitignore_combo already has "None" from .ui file)
-        self.gitignore_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         # Create button group for project type buttons (exclusive - only one can be selected)
         self.project_type_button_group = QButtonGroup()
@@ -460,32 +504,30 @@ class RepoSparkGUI(QMainWindow):
         self.project_type_web_radio.toggled.connect(self.on_project_type_changed)
         self.project_type_data_radio.toggled.connect(self.on_project_type_changed)
         self.project_type_docs_radio.toggled.connect(self.on_project_type_changed)
-        self.gitignore_combo.currentTextChanged.connect(self.update_help_info)
-        self.gitignore_combo.currentTextChanged.connect(self.on_gitignore_changed)
-
+        
         # Initialize focus tracking (if not already initialized)
         if not hasattr(self, "current_focus_section"):
             self.current_focus_section = ""
-
+        
         # Set up focus tracking timer (if not already set up)
         if not hasattr(self, "focus_timer") or self.focus_timer is None:
             self.focus_timer = QTimer()
             self.focus_timer.timeout.connect(self.check_focus)
             self.focus_timer.start(100)  # Check every 100ms
-
+        
         # Initialize help content
         self.update_help_info()
-
+        
         return widget
-
+    
     def create_advanced_tab(self) -> QWidget:
         """Create the advanced settings tab by loading .ui file"""
         widget = load_ui("advanced_tab.ui", self)
-
+        
         # Find widgets from the loaded UI
         self.remote_ssh_radio = self._find_widget(widget, QRadioButton, "remote_ssh_radio")
         self.remote_https_radio = self._find_widget(widget, QRadioButton, "remote_https_radio")
-
+        
         # Create button group for remote type
         self.remote_button_group = QButtonGroup()
         self.remote_button_group.addButton(self.remote_ssh_radio)
@@ -494,17 +536,17 @@ class RepoSparkGUI(QMainWindow):
         # Ensure default is set (SSH checked)
         # This should already be set from .ui file, but we ensure it's correct
         self.remote_ssh_radio.setChecked(True)
-
+        
         return widget
-
+    
     def create_scaffold_tab(self) -> QWidget:
         """Create the project scaffold tab by loading .ui file"""
         widget = load_ui("scaffold_tab.ui", self)
-
+        
         # Find widgets from the loaded UI
         self.create_scaffold_check = self._find_widget(widget, QCheckBox, "create_scaffold_check")
         self.create_editorconfig_check = self._find_widget(widget, QCheckBox, "create_editorconfig_check")
-
+        
         # Add custom FolderTreeWidget to the preview layout
         preview_group = self._find_widget(widget, QGroupBox, "preview_group")
         preview_layout = preview_group.layout()
@@ -516,96 +558,132 @@ class RepoSparkGUI(QMainWindow):
             # Fallback: create custom widget directly
             self.scaffold_tree = FolderTreeWidget()
             self.scaffold_tree.setMinimumHeight(300)
-
+        
         # Wire up signals
         self.create_scaffold_check.toggled.connect(self.update_scaffold_tree)
         self.create_editorconfig_check.toggled.connect(self.update_scaffold_tree)
-
+        
         # Update the tree initially
         self.update_scaffold_tree()
-
+        
         return widget
-
+    
     def create_readme_tab(self) -> QWidget:
         """Create the README.md customization tab by loading .ui file"""
         widget = load_ui("readme_tab.ui", self)
-
+        
         # Find widgets from the loaded UI
         self.template_selector = self._find_widget(widget, QComboBox, "template_selector")
         self.regenerate_readme_btn = self._find_widget(widget, QPushButton, "regenerate_readme_btn")
         self.readme_editor = self._find_widget(widget, QTextEdit, "readme_editor")
         self.readme_preview = self._find_widget(widget, QTextEdit, "readme_preview")
         splitter = self._find_widget(widget, QSplitter, "splitter")
-
+        
         # Configure widgets
         self.template_selector.addItems(
             ["Auto-generate from project type", "Custom template", "Minimal template"]
         )
         self.readme_editor.setFont(QFont("Monaco", 10))
         self.readme_preview.setMaximumWidth(400)
-
+        
         # Set splitter proportions
         if splitter:
             splitter.setSizes([600, 400])
-
+        
         # Wire up signals
         self.template_selector.currentTextChanged.connect(self.update_readme_preview)
         self.regenerate_readme_btn.clicked.connect(self.update_readme_preview)
         self.readme_editor.textChanged.connect(self.on_readme_editor_changed)
-
+        
         return widget
-
+    
     def load_defaults(self) -> None:
         """Load default values"""
         # Set default repository location to ~/dev
         default_location = os.path.expanduser("~/dev")
         os.makedirs(default_location, exist_ok=True)
-
+        
         self.repo_location_edit.setText(default_location)
-
+        
         # Set default repository name from current directory if run from command line
         # Otherwise, use empty string (user will need to enter it)
         default_name = os.path.basename(os.getcwd()) if sys.stdin.isatty() else ""
         self.repo_name_edit.setText(default_name)
         # Set folder name to same as repo name initially
         self.folder_name_edit.setText(default_name)
-
+        
         # Load gitignore templates
         templates = GitHubAPI.get_gitignore_templates()
-
+        
         # Add common languages and frameworks that don't have GitHub templates
         # These will be inserted in alphabetical order
         custom_templates = [
-            "C++",
-            "C#",
-            "Dart",
-            "Go",
-            "Java",
-            "JavaScript",
-            "Kotlin",
-            "PHP",
-            "Python",
-            "R",
-            "Ruby",
-            "Rust",
-            "Scala",
-            "Swift",
-            "TypeScript",
+            # "C++",
+            # "C#",
+            # "Dart",
+            # "Go",
+            # "Java",
+            # "JavaScript",
+            # "Kotlin",
+            # "PHP",
+            # "Python",
+            # "R",
+            # "Ruby",
+            # "Rust",
+            # "Scala",
+            # "Swift",
+            # "TypeScript",
         ]
 
-        # Clear the combo box and add "None (empty)" as the first item
-        self.gitignore_combo.clear()
-        self.gitignore_combo.addItem("None (empty)")
+        # Create gitignore template buttons if the grid layout exists
+        if hasattr(self, "gitignore_grid_layout"):
+            # Clear existing buttons (if any)
+            if hasattr(self, "gitignore_buttons"):
+                for button in list(self.gitignore_buttons.values()):
+                    self.gitignore_button_group.removeButton(button)
+                    button.deleteLater()
+                self.gitignore_buttons.clear()
+                self.gitignore_all_buttons.clear()
+            else:
+                self.gitignore_buttons = {}
+                self.gitignore_all_buttons = {}
+            
+            # Combine and sort all templates, with "None (empty)" first
+            all_templates = ["None (empty)"] + sorted(templates + custom_templates)
+            
+            # Create buttons in a grid (4 columns for better layout)
+            columns_per_row = 4
+            for index, template in enumerate(all_templates):
+                row = index // columns_per_row
+                col = index % columns_per_row
+                
+                # Create checkable button
+                button = QPushButton(template)
+                button.setCheckable(True)
+                button.setMinimumHeight(35)
+                button.setMinimumWidth(120)
+                
+                # Add to button group
+                self.gitignore_button_group.addButton(button)
+                self.gitignore_buttons[template] = button
+                # Store all buttons for filtering
+                self.gitignore_all_buttons[template] = button
+                
+                # Connect signal
+                button.toggled.connect(lambda checked, t=template: self._on_gitignore_button_toggled(t, checked))
+                
+                # Add to grid
+                self.gitignore_grid_layout.addWidget(button, row, col)
+            
+            # Set "None (empty)" as default (checked)
+            if "None (empty)" in self.gitignore_buttons:
+                self.gitignore_buttons["None (empty)"].setChecked(True)
+                self.selected_gitignore_template = "None (empty)"
+            
+            # Apply initial filter (in case search field has text)
+            if hasattr(self, "gitignore_search_edit"):
+                self._filter_gitignore_buttons(self.gitignore_search_edit.text())
         
-        # Combine and sort all templates
-        all_templates = sorted(templates + custom_templates)
-
-        for template in all_templates:
-            self.gitignore_combo.addItem(template)
-        
-        # Set default to "None (empty)"
-        self.gitignore_combo.setCurrentIndex(0)
-
         # Initialize README preview
         self.update_readme_preview()
         
@@ -617,25 +695,25 @@ class RepoSparkGUI(QMainWindow):
         """Set focus to Folder Name field and select all text"""
         self.folder_name_edit.setFocus()
         self.folder_name_edit.selectAll()
-
+    
     def browse_repository_location(self) -> None:
         """
         Open a directory dialog to select repository location.
-
+        
         Updates the repository location field with the selected path.
         Validates the selected location and handles existing git repositories.
         """
         current_path = self.repo_location_edit.text().strip()
         if not current_path or not os.path.exists(current_path):
             current_path = os.path.expanduser("~")
-
+        
         directory = QFileDialog.getExistingDirectory(
             self,
             "Select Repository Location",
             current_path,
             QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontResolveSymlinks,
         )
-
+        
         if directory:
             self.repo_location_edit.setText(directory)
             # Validate the selected location immediately (no debounce needed for browse)
@@ -754,7 +832,7 @@ class RepoSparkGUI(QMainWindow):
     def validate_inputs(self) -> tuple[bool, str]:
         """
         Validate user inputs including repository name, description, and topics.
-
+        
         Returns:
             Tuple of (is_valid, error_message). If valid, error_message is empty string.
         """
@@ -762,13 +840,13 @@ class RepoSparkGUI(QMainWindow):
         repo_location = self.repo_location_edit.text().strip()
         if not repo_location:
             return False, "Repository location is required"
-
+        
         # Check if location is a valid path
         if not os.path.isabs(repo_location):
             # Make it absolute
             repo_location = os.path.abspath(repo_location)
             self.repo_location_edit.setText(repo_location)
-
+        
         # Create directory if it doesn't exist (validate_repository_location handles this,
         # but we also check here for final validation)
         if not os.path.exists(repo_location):
@@ -776,7 +854,7 @@ class RepoSparkGUI(QMainWindow):
                 os.makedirs(repo_location, exist_ok=True)
             except OSError as e:
                 return False, f"Cannot create repository location: {str(e)}"
-
+        
         # Verify the location is accessible and writable
         if not os.path.isdir(repo_location):
             return False, f"Repository location is not a directory: {repo_location}"
@@ -826,7 +904,7 @@ class RepoSparkGUI(QMainWindow):
         repo_name = self.repo_name_edit.text().strip()
         if not repo_name:
             return False, "Repository name is required"
-
+        
         # GitHub rule: Cannot be just "." or ".."
         if repo_name == "." or repo_name == "..":
             return False, "Repository name cannot be '.' or '..'"
@@ -836,7 +914,7 @@ class RepoSparkGUI(QMainWindow):
             return False, "Repository name must be at least 1 character"
         if len(repo_name) > 100:
             return False, "Repository name cannot exceed 100 characters"
-
+        
         # GitHub rule: Only alphanumeric characters, hyphens, underscores, and dots
         if not re.match(r"^[a-zA-Z0-9._-]+$", repo_name):
             return (
@@ -867,14 +945,14 @@ class RepoSparkGUI(QMainWindow):
         # Check for dangerous characters in description (newlines, null bytes)
         if any(char in description for char in ["\n", "\r", "\x00"]):
             return False, "Description contains invalid characters (newlines or null bytes)"
-
+        
         # Validate topics
         topics_text = self.topics_edit.text().strip()
         if topics_text:
             topics = [t.strip() for t in topics_text.split(",") if t.strip()]
             if len(topics) > 20:  # GitHub topics limit
                 return False, "Maximum 20 topics allowed"
-
+            
             for topic in topics:
                 if len(topic) > 35:  # GitHub topic length limit
                     return False, f"Topic '{topic}' exceeds maximum length of 35 characters"
@@ -885,35 +963,35 @@ class RepoSparkGUI(QMainWindow):
                         "Topics can only contain alphanumeric characters and "
                         "hyphens, and must start with a letter or number",
                     )
-
+        
         # Check if gh CLI is available
         try:
             subprocess.run(["gh", "--version"], capture_output=True, check=True)
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False, "GitHub CLI (gh) is not installed or not available"
-
+        
         # Check if git is available
         try:
             subprocess.run(["git", "--version"], capture_output=True, check=True)
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False, "Git is not installed or not available"
-
+        
         # Check if user is authenticated
         user_info = GitHubAPI.get_user_info()
         if not user_info:
             return False, "GitHub CLI is not authenticated. Run 'gh auth login' first"
-
+        
         logger.debug(f"Input validation passed for repository: {repo_name}")
         return True, ""
-
+    
     def on_visibility_changed(self) -> None:
         """Handle visibility change"""
         self.update_help_info()
-
+    
     def on_license_changed(self) -> None:
         """Handle license change"""
         self.update_help_info()
-
+    
     def on_project_type_changed(self) -> None:
         """Handle project type change"""
         # Get the selected project type
@@ -922,19 +1000,16 @@ class RepoSparkGUI(QMainWindow):
         # Set gitignore template based on project type
         if "Python" in project_type:
             # Set gitignore to "Python" if project type contains "Python"
-            index = self.gitignore_combo.findText("Python")
-            if index >= 0:
-                self.gitignore_combo.setCurrentIndex(index)
+            if hasattr(self, "gitignore_buttons") and "Python" in self.gitignore_buttons:
+                self.gitignore_buttons["Python"].setChecked(True)
         elif "JavaScript" in project_type:
             # Set gitignore to "JavaScript" if project type contains "JavaScript"
-            index = self.gitignore_combo.findText("JavaScript")
-            if index >= 0:
-                self.gitignore_combo.setCurrentIndex(index)
+            if hasattr(self, "gitignore_buttons") and "JavaScript" in self.gitignore_buttons:
+                self.gitignore_buttons["JavaScript"].setChecked(True)
         elif project_type == "Other":
             # If "Other" is selected, set gitignore to "None (empty)"
-            index = self.gitignore_combo.findText("None (empty)")
-            if index >= 0:
-                self.gitignore_combo.setCurrentIndex(index)
+            if hasattr(self, "gitignore_buttons") and "None (empty)" in self.gitignore_buttons:
+                self.gitignore_buttons["None (empty)"].setChecked(True)
         
         # Defer expensive updates to allow radio button to show as selected immediately
         # These will execute after the current event loop iteration completes
@@ -942,17 +1017,56 @@ class RepoSparkGUI(QMainWindow):
         QTimer.singleShot(0, self.update_readme_preview)
         QTimer.singleShot(0, self.update_scaffold_tree)
 
-    def on_gitignore_changed(self) -> None:
-        """Handle gitignore template changes and maintain focus"""
-        # Set focus back to the gitignore combo box to keep help context
-        self.gitignore_combo.setFocus()
-        self.current_focus_section = "gitignore"
-        self.update_help_info()
-
+    def _select_gitignore_template(self, template_name: str) -> None:
+        """
+        Select a gitignore template by name.
+        This is used by the popular languages quick-select buttons.
+        
+        Args:
+            template_name: Name of the template to select
+        """
+        # Find the button in the grid that matches this template name
+        if hasattr(self, "gitignore_buttons") and template_name in self.gitignore_buttons:
+            button = self.gitignore_buttons[template_name]
+            # Make sure the button is visible (in case it's filtered out)
+            button.setVisible(True)
+            # Scroll to the button to make it visible
+            self.gitignore_scroll_area.ensureWidgetVisible(button)
+            # Programmatically click the button to select it
+            button.setChecked(True)
+            # This will trigger _on_gitignore_button_toggled which updates the help pane
+    
+    def _on_gitignore_button_toggled(self, template_name: str, checked: bool) -> None:
+        """Handle gitignore template button toggle"""
+        if checked:
+            self.selected_gitignore_template = template_name
+            # Defer expensive updates to allow button to show as selected immediately
+            # These will execute after the current event loop iteration completes
+            QTimer.singleShot(0, self.update_help_info)
+            QTimer.singleShot(0, self.update_scaffold_tree)
+    
+    def _filter_gitignore_buttons(self, search_text: str) -> None:
+        """Filter gitignore template buttons based on search text"""
+        if not hasattr(self, "gitignore_all_buttons"):
+            return
+        
+        search_text_lower = search_text.lower().strip()
+        
+        # Show/hide buttons based on search text
+        for template_name, button in self.gitignore_all_buttons.items():
+            # Check if template name contains search text (case-insensitive)
+            if not search_text_lower or search_text_lower in template_name.lower():
+                button.setVisible(True)
+            else:
+                button.setVisible(False)
+        
+        # If a button is checked but becomes hidden, ensure it stays selected
+        # (it will still be selected, just hidden - user can clear search to see it)
+    
     def check_focus(self):
         """Check which widget currently has focus and update help accordingly"""
         focused_widget = QApplication.focusWidget()
-
+        
         if focused_widget == self.folder_name_edit:
             if self.current_focus_section != "folder_name":
                 self.current_focus_section = "folder_name"
@@ -990,7 +1104,7 @@ class RepoSparkGUI(QMainWindow):
             if self.current_focus_section != "project_type":
                 self.current_focus_section = "project_type"
                 self.update_help_info()
-        elif focused_widget == self.gitignore_combo:
+        elif hasattr(self, "gitignore_buttons") and focused_widget in self.gitignore_buttons.values():
             if self.current_focus_section != "gitignore":
                 self.current_focus_section = "gitignore"
                 self.update_help_info()
@@ -1002,33 +1116,33 @@ class RepoSparkGUI(QMainWindow):
             # No widget has focus, show general help
             self.current_focus_section = ""
             self.update_help_info()
-
+    
     def on_focus_changed(self, section: str):
         """Handle focus changes to show context-aware help"""
         self.current_focus_section = section
         self.update_help_info()
-
+    
     def update_help_info(self) -> None:
         """Update the help information based on current selections"""
         help_content = self._generate_help_content()
         self.help_browser.setHtml(help_content)
-
+    
     def _generate_help_content(self) -> str:
         """Generate context-aware help content"""
         repo_name = self.repo_name_edit.text().strip()
         description = self.description_edit.text().strip()
         visibility = self._get_selected_visibility()
-        gitignore = self.gitignore_combo.currentText()
+        gitignore = getattr(self, "selected_gitignore_template", "None (empty)")
         license_name = self._get_selected_license()
         project_type = self._get_selected_project_type()
         topics = [t.strip() for t in self.topics_edit.text().split(",") if t.strip()]
-
+        
         # If no specific section is focused, show general overview
         if not self.current_focus_section:
             return self._generate_general_help(
                 repo_name, description, visibility, gitignore, license_name, project_type, topics
             )
-
+        
         # Show context-specific help based on focused section
         if self.current_focus_section == "folder_name":
             folder_name = self.folder_name_edit.text().strip()
@@ -1047,7 +1161,7 @@ class RepoSparkGUI(QMainWindow):
             return self._generate_gitignore_help(gitignore)
         elif self.current_focus_section == "topics":
             return self._generate_topics_help(topics)
-
+        
         return self._generate_general_help(
             repo_name, description, visibility, gitignore, license_name, project_type, topics
         )
@@ -1094,7 +1208,7 @@ class RepoSparkGUI(QMainWindow):
         </body>
         </html>
         """
-
+    
     def _generate_repo_name_help(self, repo_name: str) -> str:
         """Generate help content for repository name with GitHub validation rules"""
         validation_rules = """
@@ -1171,7 +1285,7 @@ class RepoSparkGUI(QMainWindow):
                 <li><strong>Control characters:</strong> Not allowed</li>
                 <li><strong>Reserved names:</strong> Cannot be CON, PRN, AUX, NUL, COM1-9, or LPT1-9 (Windows reserved)</li>
                 <li><strong>Cannot be empty:</strong> Must contain at least one non-space character</li>
-            </ul>
+                </ul>
             <p><strong>Examples:</strong></p>
             <ul>
                 <li>✅ Valid: "My Project", "project-folder", "project_folder"</li>
@@ -1224,7 +1338,7 @@ class RepoSparkGUI(QMainWindow):
             </body>
             </html>
             """
-
+    
     def _generate_description_help(self, description: str) -> str:
         """Generate help content for description with GitHub validation rules"""
         validation_rules = """
@@ -1297,7 +1411,7 @@ class RepoSparkGUI(QMainWindow):
             </body>
             </html>
             """
-
+    
     def _generate_visibility_help(self, visibility: str) -> str:
         """Generate help content for visibility"""
         if visibility == "public":
@@ -1354,7 +1468,7 @@ class RepoSparkGUI(QMainWindow):
             </body>
             </html>
             """
-
+    
     def _generate_license_help(self, license_name: str) -> str:
         """Generate help content for license"""
         if license_name == "MIT":  # noqa: SIM116
@@ -1465,7 +1579,7 @@ class RepoSparkGUI(QMainWindow):
             </body>
             </html>
             """
-
+    
     def _generate_project_type_help(self, project_type: str) -> str:
         """Generate help content for project type"""
         if project_type == "Other":  # noqa: SIM116
@@ -1657,27 +1771,27 @@ class RepoSparkGUI(QMainWindow):
             </body>
             </html>
             """
-
+    
     def _generate_gitignore_help(self, gitignore: str) -> str:  # noqa: SIM116
         """Generate help content for gitignore"""
         custom_templates = [
-            "C++",
-            "C#",
-            "Dart",
-            "Go",
-            "Java",
-            "JavaScript",
-            "Kotlin",
-            "PHP",
-            "Python",
-            "R",
-            "Ruby",
-            "Rust",
-            "Scala",
-            "Swift",
-            "TypeScript",
+        #     "C++",
+        #     "C#",
+        #     "Dart",
+        #     "Go",
+        #     "Java",
+        #     "JavaScript",
+        #     "Kotlin",
+        #     "PHP",
+        #     "Python",
+        #     "R",
+        #     "Ruby",
+        #     "Rust",
+        #     "Scala",
+        #     "Swift",
+        #     "TypeScript",
         ]
-
+        
         if gitignore == "None":
             return """
             <html>
@@ -1708,8 +1822,10 @@ class RepoSparkGUI(QMainWindow):
             </html>
             """
         elif gitignore in custom_templates:
-            # Get sample content for custom templates
-            sample_content = self._get_gitignore_sample(gitignore)
+            # Get full content for custom templates
+            template_content = self._get_gitignore_template(gitignore)
+            # Escape HTML special characters for display
+            escaped_content = html.escape(template_content)
             return f"""
             <html>
             <head>
@@ -1731,40 +1847,29 @@ class RepoSparkGUI(QMainWindow):
                         font-size: 11px;
                         line-height: 1.4;
                         margin: 12px 0;
-                        overflow-x: auto;
-                    }}
-                    .sample-label {{ 
-                        color: #586069; 
-                        font-size: 12px; 
-                        font-style: italic; 
-                        margin-bottom: 8px; 
+                        white-space: pre-wrap;
+                        word-wrap: break-word;
+                        overflow-wrap: break-word;
+                        max-width: 100%;
+                        overflow-y: auto;
+                        max-height: 500px;
                     }}
                 </style>
             </head>
             <body>
                 <h3>📄 Gitignore: {gitignore}</h3>
                 <p><strong>🔧 Custom template (not in GitHub's library)</strong></p>
-                <p>This will create a custom .gitignore file for {gitignore} projects with:</p>
-                <ul>
-                    <li>Empty .gitignore file with helpful comments</li>
-                    <li>Suggested patterns you can uncomment as needed</li>
-                    <li>Language-specific recommendations</li>
-                    <li>Common build artifacts and dependencies</li>
-                </ul>
-                <p><strong>Note:</strong> Since {gitignore} isn't in GitHub's
-                official template library, we create a custom file with
-                commented suggestions that you can customize for your specific
-                project needs.</p>
-                
-                <div class="sample-label">📋 Sample of the .gitignore file
-                that will be created:</div>
-                <pre>{sample_content}</pre>
+                <p>This will create a custom .gitignore file for {gitignore} projects.</p>
+                <p><strong>Full template content:</strong></p>
+                <pre>{escaped_content}</pre>
             </body>
             </html>
             """
         else:
-            # Get sample content for official templates
-            sample_content = self._get_gitignore_sample(gitignore)
+            # Get full content for official templates
+            template_content = self._get_gitignore_template(gitignore)
+            # Escape HTML special characters for display
+            escaped_content = html.escape(template_content)
             return f"""
             <html>
             <head>
@@ -1786,13 +1891,12 @@ class RepoSparkGUI(QMainWindow):
                         font-size: 11px;
                         line-height: 1.4;
                         margin: 12px 0;
-                        overflow-x: auto;
-                    }}
-                    .sample-label {{ 
-                        color: #586069; 
-                        font-size: 12px; 
-                        font-style: italic; 
-                        margin-bottom: 8px; 
+                        white-space: pre-wrap;
+                        word-wrap: break-word;
+                        overflow-wrap: break-word;
+                        max-width: 100%;
+                        overflow-y: auto;
+                        max-height: 500px;
                     }}
                 </style>
             </head>
@@ -1800,22 +1904,12 @@ class RepoSparkGUI(QMainWindow):
                 <h3>📄 Gitignore: {gitignore}</h3>
                 <p>This will create a .gitignore file using GitHub's official
                 template for {gitignore} projects.</p>
-                <p><strong>What it excludes:</strong></p>
-                <ul>
-                    <li>Build artifacts and compiled files</li>
-                    <li>Dependencies and package managers</li>
-                    <li>Temporary and cache files</li>
-                    <li>IDE and editor files</li>
-                    <li>OS-specific files</li>
-                </ul>
-                
-                <div class="sample-label">📋 Sample of the .gitignore file
-                that will be created:</div>
-                <pre>{sample_content}</pre>
+                <p><strong>Full template content:</strong></p>
+                <pre>{escaped_content}</pre>
             </body>
             </html>
             """
-
+    
     def _generate_topics_help(self, topics: list[str]) -> str:
         """Generate help content for topics"""
         if topics:
@@ -1875,27 +1969,27 @@ class RepoSparkGUI(QMainWindow):
             </body>
             </html>
             """
-
-    def _get_gitignore_sample(self, template_name: str) -> str:
-        """Get a sample of the gitignore template content (first ~10 lines)"""
+    
+    def _get_gitignore_template(self, template_name: str) -> str:
+        """Get the full gitignore template content"""
         custom_templates = [
-            "C++",
-            "C#",
-            "Dart",
-            "Go",
-            "Java",
-            "JavaScript",
-            "Kotlin",
-            "PHP",
-            "Python",
-            "R",
-            "Ruby",
-            "Rust",
-            "Scala",
-            "Swift",
-            "TypeScript",
+        #     "C++",
+        #     "C#",
+        #     "Dart",
+        #     "Go",
+        #     "Java",
+        #     "JavaScript",
+        #     "Kotlin",
+        #     "PHP",
+        #     "Python",
+        #     "R",
+        #     "Ruby",
+        #     "Rust",
+        #     "Scala",
+        #     "Swift",
+        #     "TypeScript",
         ]
-
+        
         if template_name in custom_templates:
             # Return sample for custom templates
             if template_name == "JavaScript":  # noqa: SIM116
@@ -2068,6 +2162,10 @@ class RepoSparkGUI(QMainWindow):
 # .tmp/
 ..."""
         else:
+            # Check cache first to avoid repeated network calls
+            if template_name in self.gitignore_template_cache:
+                return self.gitignore_template_cache[template_name]
+            
             # For official GitHub templates, try to get the actual content
             try:
                 result = subprocess.run(
@@ -2075,20 +2173,17 @@ class RepoSparkGUI(QMainWindow):
                     capture_output=True,
                     text=True,
                     check=True,
+                    timeout=2,  # 2 second timeout to prevent hanging
                 )
                 template_data = json.loads(result.stdout)
                 content = template_data.get("source", "")
-
-                # Take first ~10 lines and add ellipsis
-                lines = content.split("\n")[:10]
-                sample = "\n".join(lines)
-                if len(content.split("\n")) > 10:
-                    sample += "\n..."
-
-                return sample
-            except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
+                
+                # Cache the full content
+                self.gitignore_template_cache[template_name] = content
+                return content
+            except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError, subprocess.TimeoutExpired):
                 # Fallback if we can't get the actual template
-                return f"""# .gitignore for {template_name} projects
+                fallback = f"""# .gitignore for {template_name} projects
 # This will use GitHub's official {template_name} template
 # The actual content will be fetched from GitHub's template library
 # when the repository is created.
@@ -2100,14 +2195,17 @@ class RepoSparkGUI(QMainWindow):
 # IDE and editor files
 # OS-specific files
 ..."""
-
+                # Cache the fallback to avoid repeated failed attempts
+                self.gitignore_template_cache[template_name] = fallback
+                return fallback
+    
     def _get_selected_visibility(self) -> str:
         """Get selected visibility from radio buttons"""
         if self.visibility_public_radio.isChecked():
             return "public"
         else:
             return "private"
-
+    
     def _get_selected_license(self) -> str:
         """Get selected license from radio buttons"""
         if self.license_mit_radio.isChecked():
@@ -2118,7 +2216,7 @@ class RepoSparkGUI(QMainWindow):
             return "GPL 3.0"
         else:
             return "None"
-
+    
     def _get_selected_project_type(self) -> str:
         """Get selected project type from project type buttons"""
         if self.project_type_other_radio.isChecked():
@@ -2137,29 +2235,29 @@ class RepoSparkGUI(QMainWindow):
             return "Documentation Site"
         else:
             return "Other"  # Default
-
+    
     def update_readme_preview(self) -> None:
         """Update the README preview based on current settings"""
         try:
             # Import template system
             from templates import READMETemplate, get_project_type_by_name
-
+            
             # Get current project configuration
             config = self.get_basic_config()
-
+            
             # Get project type from radio buttons
             project_type_name = self._get_selected_project_type()
             project_type = get_project_type_by_name(project_type_name)
             config["project_type"] = project_type
-
+            
             # Generate README content
             template = READMETemplate(config)
             readme_content = template.generate()
-
+            
             # Update editor and preview
             self.readme_editor.setPlainText(readme_content)
             self.update_readme_preview_html(readme_content)
-
+            
         except ImportError:
             # Fallback if template system is not available
             user_info = GitHubAPI.get_user_info()
@@ -2191,12 +2289,12 @@ This project is licensed under the {self._get_selected_license()} License.
 """
             self.readme_editor.setPlainText(fallback_content)
             self.update_readme_preview_html(fallback_content)
-
+    
     def update_readme_preview_html(self, markdown_content: str):
         """Convert markdown to HTML for preview using GitHub-flavored markdown"""
         try:
             import markdown
-
+            
             # Configure markdown with GitHub-flavored extensions
             md = markdown.Markdown(
                 extensions=[
@@ -2213,10 +2311,10 @@ This project is licensed under the {self._get_selected_license()} License.
                     "markdown.extensions.md_in_html",  # Markdown in HTML
                 ]
             )
-
+            
             # Convert markdown to HTML
             html_content = md.convert(markdown_content)
-
+            
             # Add GitHub-style CSS
             styled_html = f"""
             <html>
@@ -2385,9 +2483,9 @@ This project is licensed under the {self._get_selected_license()} License.
             </body>
             </html>
             """
-
+            
             self.readme_preview.setHtml(styled_html)
-
+            
         except ImportError:
             # Fallback to simple conversion if markdown library is not available
             html_content = markdown_content.replace("\n", "<br>")
@@ -2397,7 +2495,7 @@ This project is licensed under the {self._get_selected_license()} License.
             html_content = html_content.replace("## ", "<h2>")
             html_content = html_content.replace("### ", "<h3>")
             html_content = html_content.replace("- ", "<li>")
-
+            
             styled_html = f"""
             <html>
             <head>
@@ -2420,18 +2518,18 @@ This project is licensed under the {self._get_selected_license()} License.
             </body>
             </html>
             """
-
+            
             self.readme_preview.setHtml(styled_html)
-
+    
     def on_readme_editor_changed(self):
         """Handle README editor content changes"""
         content = self.readme_editor.toPlainText()
         self.update_readme_preview_html(content)
-
+    
     def update_scaffold_tree(self) -> None:
         """Update the scaffold tree based on current settings"""
         self.scaffold_tree.clear()
-
+        
         if not self.create_scaffold_check.isChecked():
             # Show empty state
             root_item = QTreeWidgetItem(self.scaffold_tree)
@@ -2443,7 +2541,7 @@ This project is licensed under the {self._get_selected_license()} License.
                 ),
             )
             return
-
+        
         # Create root project folder
         project_name = (
             self.repo_name_edit.text().strip()
@@ -2451,13 +2549,13 @@ This project is licensed under the {self._get_selected_license()} License.
             else "project-name"
         )
         root_item = self.scaffold_tree.add_folder_item(None, f"{project_name}/", "root")
-
+        
         # Add standard directories with specific types
         src_folder = self.scaffold_tree.add_folder_item(root_item, "src/", "src")
         tests_folder = self.scaffold_tree.add_folder_item(root_item, "tests/", "tests")
         docs_folder = self.scaffold_tree.add_folder_item(root_item, "docs/", "docs")
         github_folder = self.scaffold_tree.add_folder_item(root_item, ".github/", "github")
-
+        
         # Add files in root with specific types
         self.scaffold_tree.add_file_item(root_item, "README.md", "readme")
         self.scaffold_tree.add_file_item(root_item, "CHANGELOG.md", "changelog")
@@ -2465,28 +2563,28 @@ This project is licensed under the {self._get_selected_license()} License.
         self.scaffold_tree.add_file_item(root_item, "CODE_OF_CONDUCT.md", "conduct")
         self.scaffold_tree.add_file_item(root_item, "SECURITY.md", "security")
         self.scaffold_tree.add_file_item(root_item, ".gitattributes", "config")
-
+        
         # Add .editorconfig if enabled
         if self.create_editorconfig_check.isChecked():
             self.scaffold_tree.add_file_item(root_item, ".editorconfig", "config")
-
+        
         # Add project-specific files based on project type
         project_type = self._get_selected_project_type()
         self._add_project_specific_files(root_item, src_folder, tests_folder, project_type)
-
+        
         # Add files in .github folder
         self.scaffold_tree.add_file_item(github_folder, "ISSUE_TEMPLATE.md", "issue")
         self.scaffold_tree.add_file_item(github_folder, "PULL_REQUEST_TEMPLATE.md", "pr")
-
+        
         # Add files in docs folder
         self.scaffold_tree.add_file_item(docs_folder, "index.md", "docs")
-
+        
         # Add files in tests folder
         self.scaffold_tree.add_file_item(tests_folder, "test_placeholder.txt", "test")
-
+        
         # Expand the root item
         self.scaffold_tree.expandItem(root_item)
-
+    
     def _add_project_specific_files(
         self,
         root_item: QTreeWidgetItem,
@@ -2503,7 +2601,7 @@ This project is licensed under the {self._get_selected_license()} License.
             self.scaffold_tree.add_file_item(src_folder, "__init__.py", "config")
             self.scaffold_tree.add_file_item(tests_folder, "__init__.py", "config")
             self.scaffold_tree.add_file_item(tests_folder, "test_main.py", "test")
-
+            
         elif project_type == "Python CLI Tool":
             # Python CLI specific files
             self.scaffold_tree.add_file_item(root_item, "pyproject.toml", "config")
@@ -2512,7 +2610,7 @@ This project is licensed under the {self._get_selected_license()} License.
             self.scaffold_tree.add_file_item(src_folder, "cli.py", "config")
             self.scaffold_tree.add_file_item(tests_folder, "__init__.py", "config")
             self.scaffold_tree.add_file_item(tests_folder, "test_cli.py", "test")
-
+            
         elif project_type == "JavaScript/Node.js Package":
             # JavaScript package specific files
             self.scaffold_tree.add_file_item(root_item, "package.json", "config")
@@ -2520,7 +2618,7 @@ This project is licensed under the {self._get_selected_license()} License.
             self.scaffold_tree.add_file_item(root_item, ".gitignore", "config")
             self.scaffold_tree.add_file_item(src_folder, "index.js", "config")
             self.scaffold_tree.add_file_item(tests_folder, "index.test.js", "test")
-
+            
         elif project_type == "Web Application":
             # Web application specific files
             self.scaffold_tree.add_file_item(root_item, "package.json", "config")
@@ -2530,7 +2628,7 @@ This project is licensed under the {self._get_selected_license()} License.
             self.scaffold_tree.add_file_item(src_folder, "app.js", "config")
             self.scaffold_tree.add_file_item(src_folder, "styles.css", "config")
             self.scaffold_tree.add_file_item(tests_folder, "app.test.js", "test")
-
+            
         elif project_type == "Data Science Project":
             # Data science specific files
             self.scaffold_tree.add_file_item(root_item, "requirements.txt", "config")
@@ -2539,7 +2637,7 @@ This project is licensed under the {self._get_selected_license()} License.
             self.scaffold_tree.add_file_item(src_folder, "main.py", "config")
             self.scaffold_tree.add_file_item(src_folder, "data_analysis.ipynb", "config")
             self.scaffold_tree.add_file_item(tests_folder, "test_analysis.py", "test")
-
+            
         elif project_type == "Documentation Site":
             # Documentation site specific files
             self.scaffold_tree.add_file_item(root_item, "package.json", "config")
@@ -2548,16 +2646,16 @@ This project is licensed under the {self._get_selected_license()} License.
             self.scaffold_tree.add_file_item(src_folder, "index.html", "config")
             self.scaffold_tree.add_file_item(src_folder, "styles.css", "config")
             self.scaffold_tree.add_file_item(tests_folder, "test_docs.py", "test")
-
+    
     def get_basic_config(self) -> dict[str, Any]:
         """
         Get basic configuration for templates.
-
+        
         Returns:
             Dictionary containing basic repository configuration
         """
         user_info = GitHubAPI.get_user_info()
-
+        
         return {
             "repo_name": self.repo_name_edit.text().strip(),
             "description": self.description_edit.text().strip(),
@@ -2571,20 +2669,22 @@ This project is licensed under the {self._get_selected_license()} License.
     def get_config(self) -> dict[str, Any]:
         """
         Get complete configuration from UI for repository creation.
-
+        
         Returns:
             Dictionary containing all configuration needed to create repository
         """
         user_info = GitHubAPI.get_user_info()
-
+        
         return {
             "repo_name": self.repo_name_edit.text().strip(),
             "folder_name": self.folder_name_edit.text().strip(),
             "description": self.description_edit.text().strip(),
             "visibility": self._get_selected_visibility(),
-            "gitignore_template": self.gitignore_combo.currentText()
-            if self.gitignore_combo.currentText() != "None (empty)"
-            else "",
+            "gitignore_template": (
+                ""
+                if getattr(self, "selected_gitignore_template", "None (empty)") == "None (empty)"
+                else getattr(self, "selected_gitignore_template", "None (empty)")
+            ),
             "license": self._get_selected_license().lower().replace(" ", "-")
             if self._get_selected_license() != "None"
             else "",
@@ -2722,7 +2822,7 @@ This will create the repository on GitHub and set up the local git repository in
         if not is_valid:
             QMessageBox.critical(self, "Validation Error", error_msg)
             return
-
+        
         # Get configuration
         config = self.get_config()
         
@@ -2732,28 +2832,28 @@ This will create the repository on GitHub and set up the local git repository in
         # Confirm creation using custom dialog
         if not self._show_confirm_dialog(config):
             return
-
+        
         # Start worker
         self.worker = RepositoryWorker(config)
         self.worker.progress.connect(self.update_progress)
         self.worker.finished.connect(self.on_creation_finished)
-
+        
         # Update UI
         self.create_button.setEnabled(False)
         self.cancel_button.setEnabled(True)
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)  # Indeterminate progress
         self.status_label.setText("Creating repository...")
-
+        
         self.worker.start()
-
+    
     def update_progress(self, message: str) -> None:
         """
         Update progress message in a thread-safe manner.
-
+        
         This method can be called from any thread and will safely update
         the UI using QMetaObject.invokeMethod for explicit thread safety.
-
+        
         Args:
             message: Progress message to display
         """
@@ -2762,14 +2862,14 @@ This will create the repository on GitHub and set up the local git repository in
         QMetaObject.invokeMethod(
             self.status_label, "setText", Qt.ConnectionType.QueuedConnection, Q_ARG(str, message)
         )
-
+    
     def on_creation_finished(self, success: bool, message: str) -> None:
         """
         Handle repository creation completion in a thread-safe manner.
-
+        
         This method is called from the worker thread and uses thread-safe
         methods to update the UI.
-
+        
         Args:
             success: Whether the operation succeeded
             message: Completion message
@@ -2787,7 +2887,7 @@ This will create the repository on GitHub and set up the local git repository in
         QMetaObject.invokeMethod(
             self.cancel_button, "setEnabled", Qt.ConnectionType.QueuedConnection, Q_ARG(bool, False)
         )
-
+        
         if success:
             # pyright: ignore[reportArgumentType, reportCallIssue]
             QMetaObject.invokeMethod(
@@ -2812,11 +2912,11 @@ This will create the repository on GitHub and set up the local git repository in
             )
             # Show error message box in main thread using QTimer for thread safety
             QTimer.singleShot(0, lambda: self._show_error_message(message))
-
+    
     def _show_success_message(self, message: str) -> None:
         """Thread-safe helper to show success message box"""
         QMessageBox.information(self, "Success", message)
-
+    
     def _show_error_message(self, message: str) -> None:
         """Thread-safe helper to show error message box"""
         QMessageBox.critical(self, "Repository Creation Failed", message)
@@ -2838,7 +2938,7 @@ This will create the repository on GitHub and set up the local git repository in
                 )
         except Exception as e:
             logger.error(f"Failed to open repository in browser: {e}")
-
+    
     def cancel_operation(self) -> None:
         """Cancel the current operation"""
         if self.worker and self.worker.isRunning():
@@ -2850,37 +2950,37 @@ This will create the repository on GitHub and set up the local git repository in
                 # If still running, force termination as last resort
                 self.worker.terminate()
                 self.worker.wait()
-
+        
         self.progress_bar.setVisible(False)
         self.create_button.setEnabled(True)
         self.cancel_button.setEnabled(False)
         self.status_label.setText("Operation cancelled")
-
+    
     def _create_menu_bar(self) -> None:
         """
         Create menu bar with Help menu containing About dialog.
         """
         menu_bar = self.menuBar()
-
+        
         # Create Help menu
         help_menu = menu_bar.addMenu("&Help")
-
+        
         # Add About action
         about_action = help_menu.addAction("&About RepoSpark...")
         about_action.triggered.connect(self.show_about_dialog)
         about_action.setShortcut("F1")  # F1 for help/about
-
+        
         # Add About Qt action (standard Qt action)
         help_menu.addSeparator()
         about_qt_action = help_menu.addAction("About &Qt...")
         about_qt_action.triggered.connect(lambda: QMessageBox.aboutQt(self))
-
+    
     def show_about_dialog(self) -> None:
         """
         Show About dialog with application information and version.
         """
         from repospark import __version__
-
+        
         about_text = f"""
         <h2>RepoSpark</h2>
         <p><b>Version {__version__}</b></p>
@@ -2899,9 +2999,9 @@ This will create the repository on GitHub and set up the local git repository in
         <p>Built with PySide6 6.7.3</p>
         <p>Python {sys.version.split()[0]}</p>
         """
-
+        
         QMessageBox.about(self, "About RepoSpark", about_text)
-
+    
     def closeEvent(self, event):
         """Handle window close event"""
         # Save window geometry for next session
@@ -2913,16 +3013,16 @@ This will create the repository on GitHub and set up the local git repository in
         # Stop focus timer
         if self.focus_timer:
             self.focus_timer.stop()
-
+        
         # Stop location validation timer
         if self.location_validation_timer:
             self.location_validation_timer.stop()
-
+        
         # Cancel any running operations
         if self.worker and self.worker.isRunning():
             self.worker._should_stop = True
             if not self.worker.wait(2000):  # 2 second timeout
                 self.worker.terminate()
                 self.worker.wait()
-
+        
         event.accept()

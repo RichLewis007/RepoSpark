@@ -24,6 +24,9 @@ class GitHubAPI:
     This class provides static methods for interacting with GitHub through
     the GitHub CLI (gh) tool. All operations use subprocess calls to gh commands.
     """
+    
+    # Cache for gitignore templates list (class-level cache)
+    _gitignore_templates_cache: list[str] | None = None
 
     @staticmethod
     def get_user_info() -> dict[str, Any] | None:
@@ -46,17 +49,44 @@ class GitHubAPI:
     def get_gitignore_templates() -> list[str]:
         """
         Get available gitignore templates from GitHub.
+        
+        Templates are cached after the first fetch to avoid repeated API calls.
+        The cache persists for the lifetime of the application.
+        
+        If a fetch fails but a cached list exists, the cached list is returned.
+        This ensures the application continues to work even if GitHub is temporarily
+        unavailable after the initial successful fetch.
 
         Returns:
             List of available gitignore template names.
-            Returns empty list if the request fails.
+            Returns empty list only if the request fails and no cache exists.
         """
+        # Return cached templates if available (even if fetch fails)
+        if GitHubAPI._gitignore_templates_cache is not None:
+            return GitHubAPI._gitignore_templates_cache
+        
+        # Fetch templates from GitHub (only if no cache exists)
         try:
             result = subprocess.run(
-                ["gh", "api", "gitignore/templates"], capture_output=True, text=True, check=True
+                ["gh", "api", "gitignore/templates"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5,  # 5 second timeout to prevent hanging
             )
-            return json.loads(result.stdout)
-        except (subprocess.CalledProcessError, json.JSONDecodeError):
+            templates = json.loads(result.stdout)
+            # Cache the result
+            GitHubAPI._gitignore_templates_cache = templates
+            logger.info(f"Loaded {len(templates)} gitignore templates from GitHub")
+            return templates
+        except (subprocess.CalledProcessError, json.JSONDecodeError, subprocess.TimeoutExpired) as e:
+            logger.warning(f"Failed to fetch gitignore templates: {e}")
+            # If we have a cached list from a previous successful fetch, use it
+            if GitHubAPI._gitignore_templates_cache is not None:
+                logger.info("Using cached gitignore templates due to fetch failure")
+                return GitHubAPI._gitignore_templates_cache
+            # Only return empty list if we have no cache at all
+            logger.error("No cached templates available and fetch failed")
             return []
 
     @staticmethod

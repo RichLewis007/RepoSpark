@@ -159,20 +159,20 @@ class RepositoryWorker(QThread):
                 # Handle custom gitignore templates
                 gitignore_template = self.config.get("gitignore_template", "")
                 custom_gitignore_templates = [
-                    "C++",
-                    "C#",
-                    "Dart",
-                    "Go",
-                    "Java",
-                    "JavaScript",
-                    "Kotlin",
-                    "PHP",
-                    "R",
-                    "Ruby",
-                    "Rust",
-                    "Scala",
-                    "Swift",
-                    "TypeScript",
+                #     "C++",
+                #     "C#",
+                #     "Dart",
+                #     "Go",
+                #     "Java",
+                #     "JavaScript",
+                #     "Kotlin",
+                #     "PHP",
+                #     "R",
+                #     "Ruby",
+                #     "Rust",
+                #     "Scala",
+                #     "Swift",
+                #     "TypeScript",
                 ]
 
                 # Create GitHub repository

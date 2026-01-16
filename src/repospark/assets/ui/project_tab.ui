@@ -103,7 +103,105 @@
         </property>
         <layout class="QVBoxLayout" name="gitignore_layout">
          <item>
-          <widget class="QComboBox" name="gitignore_combo"/>
+          <widget class="QLabel" name="popular_languages_label">
+           <property name="text">
+            <string>Pick from popular languages:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="popular_languages_layout">
+           <item>
+            <widget class="QPushButton" name="popular_typescript_btn">
+             <property name="text">
+              <string>TypeScript</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="popular_python_btn">
+             <property name="text">
+              <string>Python</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="popular_javascript_btn">
+             <property name="text">
+              <string>JavaScript</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="popular_java_btn">
+             <property name="text">
+              <string>Java</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="popular_csharp_btn">
+             <property name="text">
+              <string>C#</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="popular_rust_btn">
+             <property name="text">
+              <string>Rust</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="popular_go_btn">
+             <property name="text">
+              <string>Go</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="popular_languages_spacer">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QLineEdit" name="gitignore_search_edit">
+           <property name="placeholderText">
+            <string>Search templates...</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QScrollArea" name="gitignore_scroll_area">
+           <property name="widgetResizable">
+            <bool>true</bool>
+           </property>
+           <property name="horizontalScrollBarPolicy">
+            <enum>Qt::ScrollBarAlwaysOff</enum>
+           </property>
+           <widget class="QWidget" name="gitignore_scroll_content">
+            <property name="geometry">
+             <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>722</width>
+              <height>200</height>
+             </rect>
+            </property>
+            <layout class="QGridLayout" name="gitignore_grid_layout"/>
+           </widget>
+          </widget>
          </item>
         </layout>
        </widget>
