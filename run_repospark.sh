@@ -43,54 +43,29 @@ fi
 print_status "Python version: $python_version"
 
 # Check if uv is available
-if command -v uv &> /dev/null; then
-    print_status "Using uv for Python environment management"
-    USE_UV=true
-elif command -v pip3 &> /dev/null; then
-    print_status "Using pip3 (fallback)"
-    USE_UV=false
-else
-    print_error "Neither uv nor pip3 is available. Please install uv (recommended) or pip3."
+if ! command -v uv &> /dev/null; then
+    print_error "uv is not installed. Please install uv from: https://github.com/astral-sh/uv"
     exit 1
 fi
 
-# Check if PySide6 is installed
-if [ "$USE_UV" = true ]; then
-    # Check if virtual environment exists
-    if [ ! -d ".venv" ]; then
-        print_warning "Virtual environment not found. Creating one with uv..."
-        uv venv
+print_status "Using uv for Python environment management"
+
+# Check if virtual environment exists
+if [ ! -d ".venv" ]; then
+    print_warning "Virtual environment not found. Creating one with uv..."
+    uv venv
+fi
+
+# Check if PySide6 is installed in uv environment
+if ! uv run python3 -c "import PySide6" &> /dev/null; then
+    print_warning "PySide6 is not installed. Installing dependencies..."
+    
+    # Install dependencies
+    if [ -f "pyproject.toml" ]; then
+        uv sync
     fi
     
-    # Check if PySide6 is installed in uv environment
-    if ! uv run python3 -c "import PySide6" &> /dev/null; then
-        print_warning "PySide6 is not installed. Installing dependencies..."
-        
-        # Install dependencies
-        if [ -f "pyproject.toml" ]; then
-            uv sync
-        elif [ -f "requirements.txt" ]; then
-            uv pip install -r requirements.txt
-        else
-            uv pip install PySide6==6.7.3
-        fi
-        
-        print_status "Dependencies installed successfully in virtual environment"
-    fi
-else
-    # Check if PySide6 is installed in system Python
-    if ! python3 -c "import PySide6" &> /dev/null; then
-        print_warning "PySide6 is not installed. Installing dependencies..."
-        
-        # Install dependencies
-        if [ -f "requirements.txt" ]; then
-            pip3 install -r requirements.txt
-        else
-            pip3 install PySide6==6.7.3
-        fi
-        
-        print_status "Dependencies installed successfully"
-    fi
+    print_status "Dependencies installed successfully in virtual environment"
 fi
 
 # Check if repospark package exists
@@ -117,11 +92,6 @@ print_status "Starting RepoSpark..."
 print_status "Current directory: $(pwd)"
 
 # Run the application
-if [ "$USE_UV" = true ]; then
-    print_status "Running with uv virtual environment..."
-    # Add src to PYTHONPATH and run the module
-    PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH:-}" uv run python3 -m repospark
-else
-    print_status "Running with system Python..."
-    PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH:-}" python3 -m repospark
-fi
+print_status "Running with uv virtual environment..."
+# Add src to PYTHONPATH and run the module
+PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH:-}" uv run python3 -m repospark
