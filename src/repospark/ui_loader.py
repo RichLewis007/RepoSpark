@@ -1,9 +1,13 @@
 """
-UI loader utility for loading Qt Designer .ui files at runtime.
-
-This module provides functionality to load Qt Designer .ui files at runtime
-using QUiLoader. It supports custom widget registration and proper error handling.
+RepoSpark - UI Loader Utility
+File: src/repospark/ui_loader.py
+Version: 0.3.0
+Description: UI loader utility for loading Qt Designer .ui files at runtime.
+Created: 2025-01-16
+Maintainer: Rich Lewis - GitHub: @RichLewis007
+License: MIT
 """
+
 # Author: Rich Lewis - GitHub: @RichLewis007
 
 import importlib.resources

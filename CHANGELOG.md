@@ -7,7 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-01-16
+
+### Changed
+
+- **Major Code Refactoring**: Completely restructured codebase following modern Python and PySide6 best practices
+  - Split monolithic `app.py` (3168 lines) into logical, maintainable modules
+  - Created `core/` module for business logic (GitHub API, Git operations, scaffold generation)
+  - Created `workers/` module for background thread operations
+  - Created `widgets/` module for custom Qt widgets
+  - Created `ui/` module for UI components (main window)
+  - Separated application entry point into `main.py`
+  - All modules now follow single responsibility principle
+
 ### Added
+
+- **Comprehensive File Headers**: All Python files now include detailed headers with:
+  - File path and version information
+  - Description and purpose
+  - Creation date and maintainer information
+  - License information
+- **Modular Architecture**:
+  - `core/github_api.py`: GitHub API operations (145 lines)
+  - `core/git_operations.py`: Git repository operations (154 lines)
+  - `core/scaffold_generator.py`: Project scaffold generation (196 lines)
+  - `workers/repository_worker.py`: Background worker for repository creation (419 lines)
+  - `widgets/folder_tree_widget.py`: Custom tree widget for project preview (216 lines)
+  - `ui/main_window.py`: Main GUI window class (2309 lines)
+  - `main.py`: Application entry point (40 lines)
+
+### Improved
+
+- **Code Organization**: Files are now logically grouped by responsibility
+- **Maintainability**: Smaller, focused files are easier to understand and modify
+- **Testability**: Modular structure makes unit testing easier
+- **Import Structure**: Clean import hierarchy with proper `__init__.py` exports
+- **Documentation**: All modules have comprehensive docstrings and file headers
+
+### Technical Details
+
+- Fixed circular import issues by defining `__version__` before imports
+- Maintained backward compatibility through `__init__.py` exports
+- All imports verified and working correctly
+- File naming follows Python conventions (snake_case)
+- Module structure follows PySide6 best practices for desktop applications
 
 ## [0.3.0] - 2024-12
 
