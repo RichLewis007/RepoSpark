@@ -43,12 +43,8 @@ class FolderTreeWidget(QTreeWidget):
         self.setAlternatingRowColors(False)
         self.setIndentation(24)
         # Base64-encoded SVG data URLs for tree branch icons
-        closed_icon = (
-            "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHZpZXdCb3g9IjAgMCAxMiAxMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuNSA2TDEwIDZMMTAgNUw0LjUgNUw0LjUgNloiIGZpbGw9IiM2NTZkNzYiLz4KPHBhdGggZD0iTTYuNSA0LjVMMTAuNSA2TDYuNSA3LjVMNi41IDQuNVoiIGZpbGw9IiM2NTZkNzYiLz4KPC9zdmc+"
-        )  # noqa: E501
-        open_icon = (
-            "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHZpZXdCb3g9IjAgMCAxMiAxMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQgNC41TDEwIDQuNUwxMCA1LjVMNCA1LjVMNCA0LjVaIiBmaWxsPSIjNjU2ZDc2Ii8+Cjwvc3ZnPg=="
-        )  # noqa: E501
+        closed_icon = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHZpZXdCb3g9IjAgMCAxMiAxMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuNSA2TDEwIDZMMTAgNUw0LjUgNUw0LjUgNloiIGZpbGw9IiM2NTZkNzYiLz4KPHBhdGggZD0iTTYuNSA0LjVMMTAuNSA2TDYuNSA3LjVMNi41IDQuNVoiIGZpbGw9IiM2NTZkNzYiLz4KPC9zdmc+"  # noqa: E501
+        open_icon = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHZpZXdCb3g9IjAgMCAxMiAxMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQgNC41TDEwIDQuNUwxMCA1LjVMNCA1LjVMNCA0LjVaIiBmaWxsPSIjNjU2ZDc2Ii8+Cjwvc3ZnPg=="  # noqa: E501
         self.setStyleSheet(f"""
             QTreeWidget {{
                 background-color: #ffffff;

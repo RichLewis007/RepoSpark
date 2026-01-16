@@ -15,7 +15,7 @@ import os
 import re
 import subprocess
 import sys
-from typing import Any
+from typing import Any, TypeVar, cast
 
 from PySide6.QtCore import Q_ARG, QMetaObject, Qt, QTimer
 from PySide6.QtGui import QFont
@@ -37,10 +37,13 @@ from PySide6.QtWidgets import (
     QTabWidget,
     QTextBrowser,
     QTextEdit,
+    QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
+
+T = TypeVar("T", bound=QWidget)
 
 from ..core.github_api import GitHubAPI
 from ..ui_loader import load_ui, register_custom_widget
@@ -66,7 +69,7 @@ class RepoSparkGUI(QMainWindow):
         self.init_ui()
         self.load_defaults()
 
-    def _find_widget(self, parent: QWidget, widget_type: type, name: str) -> QWidget | None:
+    def _find_widget(self, parent: QWidget, widget_type: type[T], name: str) -> T:
         """
         Helper method to find a widget and raise an error if not found.
 
@@ -76,7 +79,7 @@ class RepoSparkGUI(QMainWindow):
             name: Name of the widget
 
         Returns:
-            The found widget
+            The found widget (never None)
 
         Raises:
             RuntimeError: If widget is not found
@@ -86,10 +89,10 @@ class RepoSparkGUI(QMainWindow):
             raise RuntimeError(
                 f"Required widget '{name}' ({widget_type.__name__}) not found in UI file"
             )
-        return widget
+        return cast(T, widget)
 
     def _find_widgets(
-        self, parent: QWidget, widget_specs: list[tuple[type, str]]
+        self, parent: QWidget, widget_specs: list[tuple[type[QWidget], str]]
     ) -> dict[str, QWidget]:
         """
         Find multiple widgets at once and validate they all exist.
@@ -296,14 +299,14 @@ class RepoSparkGUI(QMainWindow):
                     (QPushButton, "cancel_button"),
                 ],
             )
-            self.tabs = widgets["tabs"]
-            self.progress_bar = widgets["progress_bar"]
-            self.status_label = widgets["status_label"]
-            self.create_button = widgets["create_button"]
-            self.cancel_button = widgets["cancel_button"]
+            self.tabs = cast(QTabWidget, widgets["tabs"])
+            self.progress_bar = cast(QProgressBar, widgets["progress_bar"])
+            self.status_label = cast(QLabel, widgets["status_label"])
+            self.create_button = cast(QPushButton, widgets["create_button"])
+            self.cancel_button = cast(QPushButton, widgets["cancel_button"])
         except RuntimeError as e:
             QMessageBox.critical(
-                None,
+                self,
                 "UI Configuration Error",
                 f"Failed to find required widgets:\n{str(e)}\n\nPlease check the .ui files.",
             )
@@ -337,31 +340,31 @@ class RepoSparkGUI(QMainWindow):
         """Create the basic settings tab by loading .ui file"""
         widget = load_ui("basic_tab.ui", self)
 
-        # Find all widgets from the loaded UI
-        self.repo_location_edit = widget.findChild(QLineEdit, "repo_location_edit")
-        self.browse_location_btn = widget.findChild(QPushButton, "browse_location_btn")
-        self.repo_name_edit = widget.findChild(QLineEdit, "repo_name_edit")
-        self.description_edit = widget.findChild(QLineEdit, "description_edit")
-        self.visibility_public_radio = widget.findChild(QRadioButton, "visibility_public_radio")
-        self.visibility_private_radio = widget.findChild(QRadioButton, "visibility_private_radio")
-        self.license_none_radio = widget.findChild(QRadioButton, "license_none_radio")
-        self.license_mit_radio = widget.findChild(QRadioButton, "license_mit_radio")
-        self.license_apache_radio = widget.findChild(QRadioButton, "license_apache_radio")
-        self.license_gpl_radio = widget.findChild(QRadioButton, "license_gpl_radio")
-        self.project_type_other_radio = widget.findChild(QRadioButton, "project_type_other_radio")
-        self.project_type_python_lib_radio = widget.findChild(
-            QRadioButton, "project_type_python_lib_radio"
+        # Find all widgets from the loaded UI using type-safe helper
+        self.repo_location_edit = self._find_widget(widget, QLineEdit, "repo_location_edit")
+        self.browse_location_btn = self._find_widget(widget, QPushButton, "browse_location_btn")
+        self.repo_name_edit = self._find_widget(widget, QLineEdit, "repo_name_edit")
+        self.description_edit = self._find_widget(widget, QLineEdit, "description_edit")
+        self.visibility_public_radio = self._find_widget(widget, QRadioButton, "visibility_public_radio")
+        self.visibility_private_radio = self._find_widget(widget, QRadioButton, "visibility_private_radio")
+        self.license_none_radio = self._find_widget(widget, QRadioButton, "license_none_radio")
+        self.license_mit_radio = self._find_widget(widget, QRadioButton, "license_mit_radio")
+        self.license_apache_radio = self._find_widget(widget, QRadioButton, "license_apache_radio")
+        self.license_gpl_radio = self._find_widget(widget, QRadioButton, "license_gpl_radio")
+        self.project_type_other_radio = self._find_widget(widget, QRadioButton, "project_type_other_radio")
+        self.project_type_python_lib_radio = self._find_widget(
+            widget, QRadioButton, "project_type_python_lib_radio"
         )
-        self.project_type_python_cli_radio = widget.findChild(
-            QRadioButton, "project_type_python_cli_radio"
+        self.project_type_python_cli_radio = self._find_widget(
+            widget, QRadioButton, "project_type_python_cli_radio"
         )
-        self.project_type_js_radio = widget.findChild(QRadioButton, "project_type_js_radio")
-        self.project_type_web_radio = widget.findChild(QRadioButton, "project_type_web_radio")
-        self.project_type_data_radio = widget.findChild(QRadioButton, "project_type_data_radio")
-        self.project_type_docs_radio = widget.findChild(QRadioButton, "project_type_docs_radio")
-        self.gitignore_combo = widget.findChild(QComboBox, "gitignore_combo")
-        self.topics_edit = widget.findChild(QLineEdit, "topics_edit")
-        self.help_browser = widget.findChild(QTextBrowser, "help_browser")
+        self.project_type_js_radio = self._find_widget(widget, QRadioButton, "project_type_js_radio")
+        self.project_type_web_radio = self._find_widget(widget, QRadioButton, "project_type_web_radio")
+        self.project_type_data_radio = self._find_widget(widget, QRadioButton, "project_type_data_radio")
+        self.project_type_docs_radio = self._find_widget(widget, QRadioButton, "project_type_docs_radio")
+        self.gitignore_combo = self._find_widget(widget, QComboBox, "gitignore_combo")
+        self.topics_edit = self._find_widget(widget, QLineEdit, "topics_edit")
+        self.help_browser = self._find_widget(widget, QTextBrowser, "help_browser")
 
         # Configure widgets (gitignore_combo already has "None" from .ui file)
         self.gitignore_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -416,9 +419,9 @@ class RepoSparkGUI(QMainWindow):
         widget = load_ui("advanced_tab.ui", self)
 
         # Find widgets from the loaded UI
-        self.remote_https_radio = widget.findChild(QRadioButton, "remote_https_radio")
-        self.remote_ssh_radio = widget.findChild(QRadioButton, "remote_ssh_radio")
-        self.open_browser_check = widget.findChild(QCheckBox, "open_browser_check")
+        self.remote_https_radio = self._find_widget(widget, QRadioButton, "remote_https_radio")
+        self.remote_ssh_radio = self._find_widget(widget, QRadioButton, "remote_ssh_radio")
+        self.open_browser_check = self._find_widget(widget, QCheckBox, "open_browser_check")
 
         # Create button group for remote type
         self.remote_button_group = QButtonGroup()
@@ -432,17 +435,16 @@ class RepoSparkGUI(QMainWindow):
         widget = load_ui("scaffold_tab.ui", self)
 
         # Find widgets from the loaded UI
-        self.create_scaffold_check = widget.findChild(QCheckBox, "create_scaffold_check")
-        self.create_editorconfig_check = widget.findChild(QCheckBox, "create_editorconfig_check")
+        self.create_scaffold_check = self._find_widget(widget, QCheckBox, "create_scaffold_check")
+        self.create_editorconfig_check = self._find_widget(widget, QCheckBox, "create_editorconfig_check")
 
         # Add custom FolderTreeWidget to the preview layout
-        preview_group = widget.findChild(QGroupBox, "preview_group")
-        if preview_group:
-            preview_layout = preview_group.layout()
-            if preview_layout:
-                self.scaffold_tree = FolderTreeWidget()
-                self.scaffold_tree.setMinimumHeight(300)
-                preview_layout.addWidget(self.scaffold_tree)
+        preview_group = self._find_widget(widget, QGroupBox, "preview_group")
+        preview_layout = preview_group.layout()
+        if preview_layout:
+            self.scaffold_tree = FolderTreeWidget()
+            self.scaffold_tree.setMinimumHeight(300)
+            preview_layout.addWidget(self.scaffold_tree)
         else:
             # Fallback: create custom widget directly
             self.scaffold_tree = FolderTreeWidget()
@@ -462,11 +464,11 @@ class RepoSparkGUI(QMainWindow):
         widget = load_ui("readme_tab.ui", self)
 
         # Find widgets from the loaded UI
-        self.template_selector = widget.findChild(QComboBox, "template_selector")
-        self.regenerate_readme_btn = widget.findChild(QPushButton, "regenerate_readme_btn")
-        self.readme_editor = widget.findChild(QTextEdit, "readme_editor")
-        self.readme_preview = widget.findChild(QTextEdit, "readme_preview")
-        splitter = widget.findChild(QSplitter, "splitter")
+        self.template_selector = self._find_widget(widget, QComboBox, "template_selector")
+        self.regenerate_readme_btn = self._find_widget(widget, QPushButton, "regenerate_readme_btn")
+        self.readme_editor = self._find_widget(widget, QTextEdit, "readme_editor")
+        self.readme_preview = self._find_widget(widget, QTextEdit, "readme_preview")
+        splitter = self._find_widget(widget, QSplitter, "splitter")
 
         # Configure widgets
         self.template_selector.addItems(
@@ -1911,6 +1913,8 @@ class RepoSparkGUI(QMainWindow):
 
         except ImportError:
             # Fallback if template system is not available
+            user_info = GitHubAPI.get_user_info()
+            username = user_info["login"] if user_info else "username"
             fallback_content = f"""# {self.repo_name_edit.text()}
 
             {self.description_edit.text() or "A professional project created with RepoSpark."}
@@ -1919,7 +1923,7 @@ class RepoSparkGUI(QMainWindow):
 
 ```bash
 # Install the project
-git clone https://github.com/{config.get("username", "username")}/{self.repo_name_edit.text()}.git
+git clone https://github.com/{username}/{self.repo_name_edit.text()}.git
 cd {self.repo_name_edit.text()}
 ```
 
@@ -1934,7 +1938,7 @@ conduct and the process for submitting pull requests.
 
 ## License
 
-This project is licensed under the {self.license_combo.currentText()} License.
+This project is licensed under the {self._get_selected_license()} License.
 """
             self.readme_editor.setPlainText(fallback_content)
             self.update_readme_preview_html(fallback_content)
@@ -2409,6 +2413,7 @@ This will create the repository on GitHub and set up the local git repository.""
             message: Progress message to display
         """
         # Use QMetaObject.invokeMethod for explicit thread-safe UI updates
+        # pyright: ignore[reportArgumentType, reportCallIssue]
         QMetaObject.invokeMethod(
             self.status_label, "setText", Qt.ConnectionType.QueuedConnection, Q_ARG(str, message)
         )
@@ -2425,17 +2430,21 @@ This will create the repository on GitHub and set up the local git repository.""
             message: Completion message
         """
         # Use thread-safe UI updates
+        # pyright: ignore[reportArgumentType, reportCallIssue]
         QMetaObject.invokeMethod(
             self.progress_bar, "setVisible", Qt.ConnectionType.QueuedConnection, Q_ARG(bool, False)
         )
+        # pyright: ignore[reportArgumentType, reportCallIssue]
         QMetaObject.invokeMethod(
             self.create_button, "setEnabled", Qt.ConnectionType.QueuedConnection, Q_ARG(bool, True)
         )
+        # pyright: ignore[reportArgumentType, reportCallIssue]
         QMetaObject.invokeMethod(
             self.cancel_button, "setEnabled", Qt.ConnectionType.QueuedConnection, Q_ARG(bool, False)
         )
 
         if success:
+            # pyright: ignore[reportArgumentType, reportCallIssue]
             QMetaObject.invokeMethod(
                 self.status_label,
                 "setText",
@@ -2443,6 +2452,7 @@ This will create the repository on GitHub and set up the local git repository.""
                 Q_ARG(str, "Repository created successfully!"),
             )
             # Show message box in main thread
+            # pyright: ignore[reportArgumentType, reportCallIssue]
             QMetaObject.invokeMethod(
                 self,
                 "_show_success_message",
@@ -2464,6 +2474,7 @@ This will create the repository on GitHub and set up the local git repository.""
                         ]
                     )
         else:
+            # pyright: ignore[reportArgumentType, reportCallIssue]
             QMetaObject.invokeMethod(
                 self.status_label,
                 "setText",
@@ -2471,6 +2482,7 @@ This will create the repository on GitHub and set up the local git repository.""
                 Q_ARG(str, "Repository creation failed"),
             )
             # Show error message box in main thread
+            # pyright: ignore[reportArgumentType, reportCallIssue]
             QMetaObject.invokeMethod(
                 self, "_show_error_message", Qt.ConnectionType.QueuedConnection, Q_ARG(str, message)
             )
@@ -2523,7 +2535,7 @@ This will create the repository on GitHub and set up the local git repository.""
         """
         Show About dialog with application information and version.
         """
-        from ... import __version__
+        from repospark import __version__
 
         about_text = f"""
         <h2>RepoSpark</h2>

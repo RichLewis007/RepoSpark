@@ -82,12 +82,13 @@ class GitOperations:
         Returns:
             True if remote was added successfully, False otherwise
         """
-        try:
-            if remote_type == "ssh":
-                remote_url = f"git@github.com:{username}/{repo_name}.git"
-            else:
-                remote_url = f"https://github.com/{username}/{repo_name}.git"
+        # Determine remote URL before try block to ensure it's always defined
+        if remote_type == "ssh":
+            remote_url = f"git@github.com:{username}/{repo_name}.git"
+        else:
+            remote_url = f"https://github.com/{username}/{repo_name}.git"
 
+        try:
             subprocess.run(
                 ["git", "remote", "add", "origin", remote_url],
                 capture_output=True,
