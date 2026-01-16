@@ -314,6 +314,7 @@ class RepoSparkGUI(QMainWindow):
                     (QLabel, "status_label"),
                     (QPushButton, "create_button"),
                     (QPushButton, "cancel_button"),
+                    (QCheckBox, "open_browser_check"),
                 ],
             )
             self.tabs = cast(QTabWidget, widgets["tabs"])
@@ -321,6 +322,10 @@ class RepoSparkGUI(QMainWindow):
             self.status_label = cast(QLabel, widgets["status_label"])
             self.create_button = cast(QPushButton, widgets["create_button"])
             self.cancel_button = cast(QPushButton, widgets["cancel_button"])
+            self.open_browser_check = cast(QCheckBox, widgets["open_browser_check"])
+            
+            # Ensure default is set (checked)
+            self.open_browser_check.setChecked(True)
         except RuntimeError as e:
             QMessageBox.critical(
                 self,
@@ -342,13 +347,16 @@ class RepoSparkGUI(QMainWindow):
 
         # Load and add tabs
         basic_tab = self.create_basic_tab()
-        self.tabs.addTab(basic_tab, "Project Basics")
+        self.tabs.addTab(basic_tab, "Repo Settings")
+
+        project_tab = self.create_project_tab()
+        self.tabs.insertTab(1, project_tab, "Project")
 
         readme_tab = self.create_readme_tab()
         self.tabs.addTab(readme_tab, "README.md")
 
         advanced_tab = self.create_advanced_tab()
-        self.tabs.addTab(advanced_tab, "Advanced Settings")
+        self.tabs.addTab(advanced_tab, "GitHub Connection")
 
         scaffold_tab = self.create_scaffold_tab()
         self.tabs.addTab(scaffold_tab, "Project Scaffold")
@@ -369,20 +377,13 @@ class RepoSparkGUI(QMainWindow):
         self.license_mit_radio = self._find_widget(widget, QRadioButton, "license_mit_radio")
         self.license_apache_radio = self._find_widget(widget, QRadioButton, "license_apache_radio")
         self.license_gpl_radio = self._find_widget(widget, QRadioButton, "license_gpl_radio")
-        self.project_type_other_radio = self._find_widget(widget, QRadioButton, "project_type_other_radio")
-        self.project_type_python_lib_radio = self._find_widget(
-            widget, QRadioButton, "project_type_python_lib_radio"
-        )
-        self.project_type_python_cli_radio = self._find_widget(
-            widget, QRadioButton, "project_type_python_cli_radio"
-        )
-        self.project_type_js_radio = self._find_widget(widget, QRadioButton, "project_type_js_radio")
-        self.project_type_web_radio = self._find_widget(widget, QRadioButton, "project_type_web_radio")
-        self.project_type_data_radio = self._find_widget(widget, QRadioButton, "project_type_data_radio")
-        self.project_type_docs_radio = self._find_widget(widget, QRadioButton, "project_type_docs_radio")
-        self.gitignore_combo = self._find_widget(widget, QComboBox, "gitignore_combo")
-        self.topics_edit = self._find_widget(widget, QLineEdit, "topics_edit")
-        self.help_browser = self._find_widget(widget, QTextBrowser, "help_browser")
+        # Note: help_browser is in basic_tab for now, but will be moved to project_tab
+        # We'll keep a reference here for backward compatibility during transition
+        try:
+            self.help_browser = self._find_widget(widget, QTextBrowser, "help_browser")
+        except RuntimeError:
+            # help_browser not in basic_tab, will be set in project_tab
+            pass
 
         # Configure widgets (gitignore_combo already has "None" from .ui file)
         self.gitignore_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -392,12 +393,6 @@ class RepoSparkGUI(QMainWindow):
         self.setTabOrder(self.license_none_radio, self.license_mit_radio)
         self.setTabOrder(self.license_mit_radio, self.license_apache_radio)
         self.setTabOrder(self.license_apache_radio, self.license_gpl_radio)
-        self.setTabOrder(self.project_type_other_radio, self.project_type_python_lib_radio)
-        self.setTabOrder(self.project_type_python_lib_radio, self.project_type_python_cli_radio)
-        self.setTabOrder(self.project_type_python_cli_radio, self.project_type_js_radio)
-        self.setTabOrder(self.project_type_js_radio, self.project_type_web_radio)
-        self.setTabOrder(self.project_type_web_radio, self.project_type_data_radio)
-        self.setTabOrder(self.project_type_data_radio, self.project_type_docs_radio)
 
         # Wire up signals
         self.browse_location_btn.clicked.connect(self.browse_repository_location)
@@ -412,6 +407,52 @@ class RepoSparkGUI(QMainWindow):
         self.license_mit_radio.toggled.connect(self.on_license_changed)
         self.license_apache_radio.toggled.connect(self.on_license_changed)
         self.license_gpl_radio.toggled.connect(self.on_license_changed)
+
+        return widget
+
+    def create_project_tab(self) -> QWidget:
+        """Create the project settings tab by loading .ui file"""
+        widget = load_ui("project_tab.ui", self)
+
+        # Find all widgets from the loaded UI using type-safe helper
+        self.project_type_other_radio = self._find_widget(widget, QPushButton, "project_type_other_radio")
+        self.project_type_python_lib_radio = self._find_widget(
+            widget, QPushButton, "project_type_python_lib_radio"
+        )
+        self.project_type_python_cli_radio = self._find_widget(
+            widget, QPushButton, "project_type_python_cli_radio"
+        )
+        self.project_type_js_radio = self._find_widget(widget, QPushButton, "project_type_js_radio")
+        self.project_type_web_radio = self._find_widget(widget, QPushButton, "project_type_web_radio")
+        self.project_type_data_radio = self._find_widget(widget, QPushButton, "project_type_data_radio")
+        self.project_type_docs_radio = self._find_widget(widget, QPushButton, "project_type_docs_radio")
+        self.gitignore_combo = self._find_widget(widget, QComboBox, "gitignore_combo")
+        self.topics_edit = self._find_widget(widget, QLineEdit, "topics_edit")
+        self.help_browser = self._find_widget(widget, QTextBrowser, "help_browser")
+
+        # Configure widgets (gitignore_combo already has "None" from .ui file)
+        self.gitignore_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        # Create button group for project type buttons (exclusive - only one can be selected)
+        self.project_type_button_group = QButtonGroup()
+        self.project_type_button_group.setExclusive(True)
+        self.project_type_button_group.addButton(self.project_type_other_radio)
+        self.project_type_button_group.addButton(self.project_type_python_lib_radio)
+        self.project_type_button_group.addButton(self.project_type_python_cli_radio)
+        self.project_type_button_group.addButton(self.project_type_js_radio)
+        self.project_type_button_group.addButton(self.project_type_web_radio)
+        self.project_type_button_group.addButton(self.project_type_data_radio)
+        self.project_type_button_group.addButton(self.project_type_docs_radio)
+
+        # Set tab order within groups
+        self.setTabOrder(self.project_type_other_radio, self.project_type_python_lib_radio)
+        self.setTabOrder(self.project_type_python_lib_radio, self.project_type_python_cli_radio)
+        self.setTabOrder(self.project_type_python_cli_radio, self.project_type_js_radio)
+        self.setTabOrder(self.project_type_js_radio, self.project_type_web_radio)
+        self.setTabOrder(self.project_type_web_radio, self.project_type_data_radio)
+        self.setTabOrder(self.project_type_data_radio, self.project_type_docs_radio)
+
+        # Wire up signals
         self.project_type_other_radio.toggled.connect(self.on_project_type_changed)
         self.project_type_python_lib_radio.toggled.connect(self.on_project_type_changed)
         self.project_type_python_cli_radio.toggled.connect(self.on_project_type_changed)
@@ -422,13 +463,15 @@ class RepoSparkGUI(QMainWindow):
         self.gitignore_combo.currentTextChanged.connect(self.update_help_info)
         self.gitignore_combo.currentTextChanged.connect(self.on_gitignore_changed)
 
-        # Initialize focus tracking
-        self.current_focus_section = ""
+        # Initialize focus tracking (if not already initialized)
+        if not hasattr(self, "current_focus_section"):
+            self.current_focus_section = ""
 
-        # Set up focus tracking timer
-        self.focus_timer = QTimer()
-        self.focus_timer.timeout.connect(self.check_focus)
-        self.focus_timer.start(100)  # Check every 100ms
+        # Set up focus tracking timer (if not already set up)
+        if not hasattr(self, "focus_timer") or self.focus_timer is None:
+            self.focus_timer = QTimer()
+            self.focus_timer.timeout.connect(self.check_focus)
+            self.focus_timer.start(100)  # Check every 100ms
 
         # Initialize help content
         self.update_help_info()
@@ -442,17 +485,15 @@ class RepoSparkGUI(QMainWindow):
         # Find widgets from the loaded UI
         self.remote_ssh_radio = self._find_widget(widget, QRadioButton, "remote_ssh_radio")
         self.remote_https_radio = self._find_widget(widget, QRadioButton, "remote_https_radio")
-        self.open_browser_check = self._find_widget(widget, QCheckBox, "open_browser_check")
 
         # Create button group for remote type
         self.remote_button_group = QButtonGroup()
         self.remote_button_group.addButton(self.remote_ssh_radio)
         self.remote_button_group.addButton(self.remote_https_radio)
         
-        # Ensure defaults are set (SSH checked, open browser checked)
-        # These should already be set from .ui file, but we ensure they're correct
+        # Ensure default is set (SSH checked)
+        # This should already be set from .ui file, but we ensure it's correct
         self.remote_ssh_radio.setChecked(True)
-        self.open_browser_check.setChecked(True)
 
         return widget
 
@@ -543,6 +584,7 @@ class RepoSparkGUI(QMainWindow):
             "JavaScript",
             "Kotlin",
             "PHP",
+            "Python",
             "R",
             "Ruby",
             "Rust",
@@ -874,14 +916,31 @@ class RepoSparkGUI(QMainWindow):
 
     def on_project_type_changed(self) -> None:
         """Handle project type change"""
-        # If "Other" is selected, set gitignore to "None (empty)"
-        if self.project_type_other_radio.isChecked():
+        # Get the selected project type
+        project_type = self._get_selected_project_type()
+        
+        # Set gitignore template based on project type
+        if "Python" in project_type:
+            # Set gitignore to "Python" if project type contains "Python"
+            index = self.gitignore_combo.findText("Python")
+            if index >= 0:
+                self.gitignore_combo.setCurrentIndex(index)
+        elif "JavaScript" in project_type:
+            # Set gitignore to "JavaScript" if project type contains "JavaScript"
+            index = self.gitignore_combo.findText("JavaScript")
+            if index >= 0:
+                self.gitignore_combo.setCurrentIndex(index)
+        elif project_type == "Other":
+            # If "Other" is selected, set gitignore to "None (empty)"
             index = self.gitignore_combo.findText("None (empty)")
             if index >= 0:
                 self.gitignore_combo.setCurrentIndex(index)
-        self.update_help_info()
-        self.update_readme_preview()
-        self.update_scaffold_tree()
+        
+        # Defer expensive updates to allow radio button to show as selected immediately
+        # These will execute after the current event loop iteration completes
+        QTimer.singleShot(0, self.update_help_info)
+        QTimer.singleShot(0, self.update_readme_preview)
+        QTimer.singleShot(0, self.update_scaffold_tree)
 
     def on_gitignore_changed(self) -> None:
         """Handle gitignore template changes and maintain focus"""
@@ -1610,6 +1669,7 @@ class RepoSparkGUI(QMainWindow):
             "JavaScript",
             "Kotlin",
             "PHP",
+            "Python",
             "R",
             "Ruby",
             "Rust",
@@ -1827,6 +1887,7 @@ class RepoSparkGUI(QMainWindow):
             "JavaScript",
             "Kotlin",
             "PHP",
+            "Python",
             "R",
             "Ruby",
             "Rust",
@@ -2059,7 +2120,7 @@ class RepoSparkGUI(QMainWindow):
             return "None"
 
     def _get_selected_project_type(self) -> str:
-        """Get selected project type from radio buttons"""
+        """Get selected project type from project type buttons"""
         if self.project_type_other_radio.isChecked():
             return "Other"
         elif self.project_type_python_lib_radio.isChecked():

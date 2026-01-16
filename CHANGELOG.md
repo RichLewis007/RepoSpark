@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+
+- **Custom Confirmation Dialog**: New confirmation dialog for repository creation
+  - Created `confirm_dialog.ui` file for Qt Designer editing
+  - Larger dialog size (700x600 pixels) for better readability
+  - HTML-formatted repository details display
+  - Centered on screen automatically
+  - "No" button set as default (Enter key cancels operation)
+  - Fallback to QMessageBox if custom dialog fails to load
+
+### Changed
+
+- **Advanced Settings Defaults**: Updated default values for better user experience
+  - SSH is now the default remote type (moved to top of list)
+  - "Open repository in browser after creation" checkbox defaults to checked
+- **Error Handling**: Improved error message display and thread safety
+  - All error messages now shown in modal dialogs with clear titles
+  - Error dialog title changed to "Repository Creation Failed" for clarity
+  - Fixed thread-safety issues with error/success message display
+  - Replaced `QMetaObject.invokeMethod` with `QTimer.singleShot` for more reliable thread-safe UI updates
+
+### Fixed
+
+- **Critical**: Fixed "repo_name is not defined" error when opening repository in browser
+  - Config is now stored when worker starts instead of being retrieved from UI in worker thread
+  - Added `_open_repo_in_browser()` method for thread-safe browser opening
+- **Critical**: Fixed `QMetaObject::invokeMethod: No such method` error for error messages
+  - Replaced `QMetaObject.invokeMethod` calls with `QTimer.singleShot` for message boxes
+  - More reliable thread-safe method invocation
+
 ## [0.3.1] - 2025-01-16
 
 ### Changed

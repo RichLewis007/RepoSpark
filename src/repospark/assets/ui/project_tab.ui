@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ProjectTab</class>
+ <widget class="QWidget" name="ProjectTab">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <layout class="QHBoxLayout" name="main_layout">
+   <item>
+    <widget class="QWidget" name="left_panel">
+     <layout class="QVBoxLayout" name="left_layout">
+      <item>
+       <widget class="QGroupBox" name="project_type_group">
+        <property name="title">
+         <string>Project Type</string>
+        </property>
+        <layout class="QGridLayout" name="project_type_layout">
+         <item row="0" column="0">
+          <widget class="QPushButton" name="project_type_other_radio">
+           <property name="text">
+            <string>Other</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QPushButton" name="project_type_python_lib_radio">
+           <property name="text">
+            <string>Python Library</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="2">
+          <widget class="QPushButton" name="project_type_python_cli_radio">
+           <property name="text">
+            <string>Python CLI Tool</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="3">
+          <widget class="QPushButton" name="project_type_js_radio">
+           <property name="text">
+            <string>JavaScript/Node.js Package</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QPushButton" name="project_type_web_radio">
+           <property name="text">
+            <string>Web Application</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QPushButton" name="project_type_data_radio">
+           <property name="text">
+            <string>Data Science Project</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="2">
+          <widget class="QPushButton" name="project_type_docs_radio">
+           <property name="text">
+            <string>Documentation Site</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="gitignore_group">
+        <property name="title">
+         <string>.gitignore Template</string>
+        </property>
+        <layout class="QVBoxLayout" name="gitignore_layout">
+         <item>
+          <widget class="QComboBox" name="gitignore_combo"/>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="topics_group">
+        <property name="title">
+         <string>Topics</string>
+        </property>
+        <layout class="QVBoxLayout" name="topics_layout">
+         <item>
+          <widget class="QLineEdit" name="topics_edit">
+           <property name="placeholderText">
+            <string>Comma-separated topics (e.g., python, gui, qt)</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>40</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QWidget" name="right_panel">
+     <property name="maximumSize">
+      <size>
+       <width>400</width>
+       <height>16777215</height>
+      </size>
+     </property>
+     <layout class="QVBoxLayout" name="right_layout">
+      <item>
+       <widget class="QLabel" name="help_label">
+        <property name="text">
+         <string>ℹ️ Information &amp; Help</string>
+        </property>
+        <property name="styleSheet">
+         <string>font-weight: bold; font-size: 14px; padding: 10px;</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QTextBrowser" name="help_browser">
+        <property name="styleSheet">
+         <string>QTextBrowser {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 15px;
+    font-size: 12px;
+    line-height: 1.4;
+}</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
