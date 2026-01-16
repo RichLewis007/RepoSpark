@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QComboBox,
+    QDialog,
     QFileDialog,
     QGroupBox,
     QLabel,
@@ -62,6 +63,7 @@ class RepoSparkGUI(QMainWindow):
         self.worker = None
         self.focus_timer = None
         self.location_validation_timer = None
+        self.current_config = None  # Store config for use after worker completes
 
         # Register custom widgets for QUiLoader
         register_custom_widget("FolderTreeWidget", FolderTreeWidget)
@@ -2538,19 +2540,95 @@ This project is licensed under the {self._get_selected_license()} License.
             else "",
         }
 
-    def create_repository(self) -> None:
-        """Start repository creation process"""
-        # Validate inputs
-        is_valid, error_msg = self.validate_inputs()
-        if not is_valid:
-            QMessageBox.critical(self, "Validation Error", error_msg)
-            return
+    def _show_confirm_dialog(self, config: dict[str, Any]) -> bool:
+        """
+        Show confirmation dialog for repository creation.
 
-        # Get configuration
-        config = self.get_config()
+        Args:
+            config: Repository configuration dictionary
 
-        # Confirm creation
-        msg = f"""Create repository '{config["repo_name"]}'?
+        Returns:
+            True if user confirmed (Yes), False if cancelled (No)
+        """
+        try:
+            # Load the confirmation dialog UI (returns QDialog directly)
+            dialog = load_ui("confirm_dialog.ui", self)
+            if not isinstance(dialog, QDialog):
+                # Fallback: if not a QDialog, wrap it
+                temp_dialog = QDialog(self)
+                layout = QVBoxLayout(temp_dialog)
+                layout.addWidget(dialog)
+                dialog = temp_dialog
+
+            # Find widgets within the dialog
+            title_label = self._find_widget(dialog, QLabel, "title_label")
+            details_browser = self._find_widget(dialog, QTextBrowser, "details_browser")
+            yes_button = self._find_widget(dialog, QPushButton, "yes_button")
+            no_button = self._find_widget(dialog, QPushButton, "no_button")
+
+            # Update title with repository name
+            title_label.setText(f"Create repository '{config['repo_name']}'?")
+
+            # Format details message
+            details_html = f"""<html>
+<head>
+<style>
+body {{ font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; }}
+h3 {{ color: #24292e; margin-top: 10px; margin-bottom: 8px; }}
+p {{ margin: 4px 0; line-height: 1.5; }}
+strong {{ color: #0366d6; }}
+</style>
+</head>
+<body>
+<h3>Repository Details:</h3>
+<p><strong>GitHub Name:</strong> {config["repo_name"]}</p>
+<p><strong>Folder Name:</strong> {config["folder_name"]}</p>
+<p><strong>Location:</strong> {config["repo_location"]}</p>
+<p><strong>Visibility:</strong> {config["visibility"]}</p>
+<p><strong>Description:</strong> {config["description"] or "None"}</p>
+<p><strong>Gitignore:</strong> {config["gitignore_template"] or "None"}</p>
+<p><strong>License:</strong> {config["license"] or "None"}</p>
+<p><strong>Topics:</strong> {", ".join(config["topics"]) if config["topics"] else "None"}</p>
+<p><strong>Remote:</strong> {config["remote_type"].upper()}</p>
+<p><strong>Scaffold:</strong> {"Yes" if config["create_scaffold"] else "No"}</p>
+<br>
+<p><strong>This will create the repository on GitHub and set up the local git repository in:</strong></p>
+<p>{os.path.join(config["repo_location"], config["folder_name"])}</p>
+</body>
+</html>"""
+            details_browser.setHtml(details_html)
+
+            # Connect buttons
+            result = [False]  # Use list to allow modification in nested function
+
+            def on_yes():
+                result[0] = True
+                dialog.accept()
+
+            def on_no():
+                result[0] = False
+                dialog.reject()
+
+            yes_button.clicked.connect(on_yes)
+            no_button.clicked.connect(on_no)
+
+            # Center dialog on screen
+            dialog.setWindowModality(Qt.WindowModality.WindowModal)
+            screen = QApplication.primaryScreen()
+            screen_geometry = screen.geometry()
+            dialog_geometry = dialog.frameGeometry()
+            center_point = screen_geometry.center()
+            dialog_geometry.moveCenter(center_point)
+            dialog.move(dialog_geometry.topLeft())
+
+            # Execute dialog (No is default button from .ui file)
+            dialog.exec()
+            return result[0]
+
+        except Exception as e:
+            logger.error(f"Failed to load confirmation dialog: {e}")
+            # Fallback to QMessageBox if custom dialog fails
+            msg = f"""Create repository '{config["repo_name"]}'?
 
 Repository Details:
 • GitHub Name: {config["repo_name"]}
@@ -2567,14 +2645,31 @@ Repository Details:
 This will create the repository on GitHub and set up the local git repository in:
 {os.path.join(config["repo_location"], config["folder_name"])}"""
 
-        reply = QMessageBox.question(
-            self,
-            "Confirm Creation",
-            msg,
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
+            reply = QMessageBox.question(
+                self,
+                "Confirm Creation",
+                msg,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,  # No as default
+            )
+            return reply == QMessageBox.StandardButton.Yes
 
-        if reply == QMessageBox.StandardButton.No:
+    def create_repository(self) -> None:
+        """Start repository creation process"""
+        # Validate inputs
+        is_valid, error_msg = self.validate_inputs()
+        if not is_valid:
+            QMessageBox.critical(self, "Validation Error", error_msg)
+            return
+
+        # Get configuration
+        config = self.get_config()
+        
+        # Store config for later use (e.g., opening browser after success)
+        self.current_config = config.copy()
+
+        # Confirm creation using custom dialog
+        if not self._show_confirm_dialog(config):
             return
 
         # Start worker
@@ -2640,28 +2735,12 @@ This will create the repository on GitHub and set up the local git repository in
                 Qt.ConnectionType.QueuedConnection,
                 Q_ARG(str, "Repository created successfully!"),
             )
-            # Show message box in main thread
-            # pyright: ignore[reportArgumentType, reportCallIssue]
-            QMetaObject.invokeMethod(
-                self,
-                "_show_success_message",
-                Qt.ConnectionType.QueuedConnection,
-                Q_ARG(str, message),
-            )
+            # Show message box in main thread using QTimer for thread safety
+            QTimer.singleShot(0, lambda: self._show_success_message(message))
 
-            # Open in browser if requested
-            config = self.get_config()
-            if config.get("open_browser", False):
-                with contextlib.suppress(subprocess.CalledProcessError):
-                    subprocess.run(
-                        [
-                            "gh",
-                            "repo",
-                            "view",
-                            f"{config['username']}/{config['repo_name']}",
-                            "--web",
-                        ]
-                    )
+            # Open in browser if requested (use stored config)
+            if self.current_config and self.current_config.get("open_browser", False):
+                QTimer.singleShot(0, lambda: self._open_repo_in_browser())
         else:
             # pyright: ignore[reportArgumentType, reportCallIssue]
             QMetaObject.invokeMethod(
@@ -2670,11 +2749,8 @@ This will create the repository on GitHub and set up the local git repository in
                 Qt.ConnectionType.QueuedConnection,
                 Q_ARG(str, "Repository creation failed"),
             )
-            # Show error message box in main thread
-            # pyright: ignore[reportArgumentType, reportCallIssue]
-            QMetaObject.invokeMethod(
-                self, "_show_error_message", Qt.ConnectionType.QueuedConnection, Q_ARG(str, message)
-            )
+            # Show error message box in main thread using QTimer for thread safety
+            QTimer.singleShot(0, lambda: self._show_error_message(message))
 
     def _show_success_message(self, message: str) -> None:
         """Thread-safe helper to show success message box"""
@@ -2682,7 +2758,25 @@ This will create the repository on GitHub and set up the local git repository in
 
     def _show_error_message(self, message: str) -> None:
         """Thread-safe helper to show error message box"""
-        QMessageBox.critical(self, "Error", message)
+        QMessageBox.critical(self, "Repository Creation Failed", message)
+
+    def _open_repo_in_browser(self) -> None:
+        """Open the repository in browser (called from main thread)"""
+        if not self.current_config:
+            return
+        try:
+            with contextlib.suppress(subprocess.CalledProcessError):
+                subprocess.run(
+                    [
+                        "gh",
+                        "repo",
+                        "view",
+                        f"{self.current_config['username']}/{self.current_config['repo_name']}",
+                        "--web",
+                    ]
+                )
+        except Exception as e:
+            logger.error(f"Failed to open repository in browser: {e}")
 
     def cancel_operation(self) -> None:
         """Cancel the current operation"""
