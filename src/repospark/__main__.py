@@ -4,11 +4,9 @@ File: src/repospark/__main__.py
 Version: 0.3.0
 Description: Allows running the package as a module: python -m repospark
 Created: 2025-01-16
-Maintainer: Rich Lewis - GitHub: @RichLewis007
+Author: Rich Lewis - GitHub: @RichLewis007
 License: MIT
 """
-
-# Author: Rich Lewis - GitHub: @RichLewis007
 
 from .main import main
 

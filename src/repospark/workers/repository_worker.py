@@ -4,22 +4,20 @@ File: src/repospark/workers/repository_worker.py
 Version: 0.3.0
 Description: Background worker thread for repository creation operations.
 Created: 2025-01-16
-Maintainer: Rich Lewis - GitHub: @RichLewis007
+Author: Rich Lewis - GitHub: @RichLewis007
 License: MIT
 """
 
-# Author: Rich Lewis - GitHub: @RichLewis007
-
-import os
 import json
 import logging
+import os
 import subprocess
-from typing import Dict, Any
+from typing import Any
 
 from PySide6.QtCore import QThread, Signal
 
-from ..core.github_api import GitHubAPI
 from ..core.git_operations import GitOperations
+from ..core.github_api import GitHubAPI
 from ..core.scaffold_generator import ScaffoldGenerator
 
 # Configure logging
@@ -29,24 +27,24 @@ logger = logging.getLogger(__name__)
 class RepositoryWorker(QThread):
     """
     Background worker for repository creation operations.
-    
+
     This worker runs repository creation tasks in a separate thread to avoid
     blocking the UI. It emits progress signals and a finished signal when complete.
-    
+
     Attributes:
         progress: Signal emitted with progress messages (str)
         finished: Signal emitted when operation completes (bool, str)
         config: Configuration dictionary for repository creation
         _should_stop: Flag to indicate cancellation request
     """
-    
+
     progress = Signal(str)
     finished = Signal(bool, str)
-    
-    def __init__(self, config: Dict[str, Any]):
+
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the repository worker.
-        
+
         Args:
             config: Dictionary containing repository configuration:
                 - repo_name: Name of the repository
@@ -65,21 +63,21 @@ class RepositoryWorker(QThread):
         super().__init__()
         self.config = config
         self._should_stop = False
-    
+
     def cancel(self) -> None:
         """
         Request cancellation of the current operation.
-        
+
         Sets the cancellation flag which is checked at various points
         during the repository creation process.
         """
         self._should_stop = True
         logger.info("Repository worker cancellation requested")
-    
+
     def run(self) -> None:
         """
         Execute the repository creation workflow.
-        
+
         This method performs the following steps:
         1. Create project scaffold (if requested)
         2. Create GitHub repository
@@ -89,7 +87,7 @@ class RepositoryWorker(QThread):
         6. Add remote origin
         7. Push to GitHub
         8. Set repository topics
-        
+
         Emits progress signals throughout and a finished signal at the end.
         """
         try:
@@ -97,51 +95,65 @@ class RepositoryWorker(QThread):
             if self._should_stop:
                 self.finished.emit(False, "Operation cancelled")
                 return
-            
+
             # Change to repository location directory
-            repo_location = self.config.get('repo_location', os.getcwd())
+            repo_location = self.config.get("repo_location", os.getcwd())
             if not os.path.exists(repo_location):
                 os.makedirs(repo_location, exist_ok=True)
-            
+
             # Store original directory to restore later
             original_cwd = os.getcwd()
             os.chdir(repo_location)
-            
+
             try:
                 # Check if directory is empty and create scaffold if needed
-                if self.config.get('create_scaffold', False):
+                if self.config.get("create_scaffold", False):
                     if self._should_stop:
                         self.finished.emit(False, "Operation cancelled")
                         return
                     self.progress.emit("Creating project scaffold...")
                     ScaffoldGenerator.create_scaffold(
-                        self.config['repo_name'],
-                        self.config.get('create_editorconfig', True),
-                        self.config.get('readme_content', '')
+                        self.config["repo_name"],
+                        self.config.get("create_editorconfig", True),
+                        self.config.get("readme_content", ""),
                     )
-                
+
                 # Handle custom gitignore templates
-                gitignore_template = self.config.get('gitignore_template', '')
+                gitignore_template = self.config.get("gitignore_template", "")
                 custom_gitignore_templates = [
-                    "C++", "C#", "Dart", "Go", "Java", "JavaScript", 
-                    "Kotlin", "PHP", "R", "Ruby", "Rust", "Scala", "Swift", "TypeScript"
+                    "C++",
+                    "C#",
+                    "Dart",
+                    "Go",
+                    "Java",
+                    "JavaScript",
+                    "Kotlin",
+                    "PHP",
+                    "R",
+                    "Ruby",
+                    "Rust",
+                    "Scala",
+                    "Swift",
+                    "TypeScript",
                 ]
-                
+
                 # Create GitHub repository
                 if self._should_stop:
                     self.finished.emit(False, "Operation cancelled")
                     return
                 self.progress.emit("Creating GitHub repository...")
                 if not GitHubAPI.create_repository(
-                    self.config['repo_name'],
-                    self.config['visibility'],
-                    self.config.get('description', ''),
-                    gitignore_template if gitignore_template not in custom_gitignore_templates else "",
-                    self.config.get('license', '')
+                    self.config["repo_name"],
+                    self.config["visibility"],
+                    self.config.get("description", ""),
+                    gitignore_template
+                    if gitignore_template not in custom_gitignore_templates
+                    else "",
+                    self.config.get("license", ""),
                 ):
                     self.finished.emit(False, "Failed to create GitHub repository")
                     return
-                
+
                 # Create custom gitignore file if needed (before git init)
                 if self._should_stop:
                     self.finished.emit(False, "Operation cancelled")
@@ -154,17 +166,17 @@ class RepositoryWorker(QThread):
                     # or create it locally before git add
                     self.progress.emit(f"Fetching .gitignore template for {gitignore_template}...")
                     self._fetch_gitignore_template(gitignore_template)
-                
+
                 # Initialize git if needed
                 if self._should_stop:
                     self.finished.emit(False, "Operation cancelled")
                     return
-                if not os.path.exists('.git'):
+                if not os.path.exists(".git"):
                     self.progress.emit("Initializing git repository...")
                     if not GitOperations.init_repository():
                         self.finished.emit(False, "Failed to initialize git repository")
                         return
-                
+
                 # Add and commit files
                 if self._should_stop:
                     self.finished.emit(False, "Operation cancelled")
@@ -173,20 +185,20 @@ class RepositoryWorker(QThread):
                 if not GitOperations.add_and_commit():
                     self.finished.emit(False, "Failed to add and commit files")
                     return
-                
+
                 # Add remote
                 if self._should_stop:
                     self.finished.emit(False, "Operation cancelled")
                     return
                 self.progress.emit("Adding remote origin...")
                 if not GitOperations.add_remote(
-                    self.config['username'],
-                    self.config['repo_name'],
-                    self.config.get('remote_type', 'https')
+                    self.config["username"],
+                    self.config["repo_name"],
+                    self.config.get("remote_type", "https"),
                 ):
                     self.finished.emit(False, "Failed to add remote origin")
                     return
-                
+
                 # Push to GitHub
                 if self._should_stop:
                     self.finished.emit(False, "Operation cancelled")
@@ -195,21 +207,21 @@ class RepositoryWorker(QThread):
                 if not GitOperations.push_to_remote():
                     self.finished.emit(False, "Failed to push to GitHub")
                     return
-                
+
                 # Set topics
                 if self._should_stop:
                     self.finished.emit(False, "Operation cancelled")
                     return
-                if self.config.get('topics'):
+                if self.config.get("topics"):
                     self.progress.emit("Setting repository topics...")
                     if not GitHubAPI.set_topics(
-                        self.config['username'],
-                        self.config['repo_name'],
-                        self.config['topics']
+                        self.config["username"], self.config["repo_name"], self.config["topics"]
                     ):
                         self.progress.emit("Warning: Failed to set topics")
-                
-                self.finished.emit(True, f"Repository '{self.config['repo_name']}' created successfully!")
+
+                self.finished.emit(
+                    True, f"Repository '{self.config['repo_name']}' created successfully!"
+                )
             except Exception as e:
                 logger.error(f"Error creating repository: {str(e)}")
                 self.finished.emit(False, f"Error: {str(e)}")
@@ -219,16 +231,16 @@ class RepositoryWorker(QThread):
         except Exception as e:
             logger.error(f"Error in repository creation: {str(e)}")
             self.finished.emit(False, f"Error: {str(e)}")
-    
+
     def _create_custom_gitignore(self, template_name: str) -> None:
         """
         Create a custom .gitignore file for languages/frameworks not in GitHub's library.
-        
+
         Args:
             template_name: Name of the template (e.g., "JavaScript", "Python")
         """
         gitignore_content = f"# .gitignore for {template_name} projects\n"
-        
+
         if template_name == "JavaScript":
             gitignore_content += """# No files are ignored for JavaScript projects by default
 # Add specific patterns as needed for your project
@@ -391,28 +403,30 @@ class RepositoryWorker(QThread):
 # .cache/
 # .tmp/
 """
-        
-        with open('.gitignore', 'w', encoding='utf-8') as f:
+
+        with open(".gitignore", "w", encoding="utf-8") as f:
             f.write(gitignore_content)
-    
+
     def _fetch_gitignore_template(self, template_name: str) -> None:
         """
         Fetch gitignore template from GitHub API and create local file.
-        
+
         Args:
             template_name: Name of the gitignore template to fetch
         """
         try:
             result = subprocess.run(
-                ['gh', 'api', f'gitignore/templates/{template_name}'],
-                capture_output=True, text=True, check=True
+                ["gh", "api", f"gitignore/templates/{template_name}"],
+                capture_output=True,
+                text=True,
+                check=True,
             )
             template_data = json.loads(result.stdout)
-            content = template_data.get('source', '')
-            
+            content = template_data.get("source", "")
+
             # Only create if we got content and file doesn't exist
-            if content and not os.path.exists('.gitignore'):
-                with open('.gitignore', 'w', encoding='utf-8') as f:
+            if content and not os.path.exists(".gitignore"):
+                with open(".gitignore", "w", encoding="utf-8") as f:
                     f.write(content)
         except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
             # If we can't fetch it, that's okay - GitHub already created it in the repo

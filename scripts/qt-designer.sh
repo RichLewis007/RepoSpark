@@ -1,9 +1,14 @@
 #!/bin/bash
-# Convenient script to launch Qt Designer from PySide6 and open the UI file
+# RepoSpark - Qt Designer Launcher Script
+# File: scripts/qt-designer.sh
+# Version: 0.3.1
+# Description: Convenient script to launch Qt Designer from PySide6 and open UI files.
+# Created: 2025-01-16
 # Author: Rich Lewis - GitHub: @RichLewis007
+# License: MIT
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-UI_DIR="${SCRIPT_DIR}/src/python_gui_scaffold/assets/ui"
+UI_DIR="${SCRIPT_DIR}/src/repospark/assets/ui"
 UI_FILE="${UI_DIR}/main_window.ui"
 
 # Dynamically detect PySide6 installation path

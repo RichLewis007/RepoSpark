@@ -5,7 +5,6 @@ description = "A PySide6 GUI application for creating GitHub repositories"
 readme = "README.md"
 requires-python = ">=3.13.11"
 authors = [{ name = "Rich Lewis" }]
-# Author: Rich Lewis - GitHub: @RichLewis007
 
 dependencies = [
   "PySide6==6.7.3",
