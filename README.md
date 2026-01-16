@@ -200,9 +200,6 @@ The application provides comprehensive error handling:
 If you're using uv, you can also use the predefined scripts:
 
 ```bash
-# Run the demo
-uv run demo
-
 # Run tests
 uv run test
 

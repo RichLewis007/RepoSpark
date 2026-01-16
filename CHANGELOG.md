@@ -112,7 +112,6 @@ and this project adheres to [Semantic Versioning](https://semver.org).
   - Updated all documentation to reflect uv-only workflow
 - Reorganized source code structure:
   - `src/repospark.py` → `src/repospark/app.py`
-  - `src/demo.py` → `src/repospark/demo.py`
 - Updated entry point in `pyproject.toml` to use proper package structure
 - Updated all import statements throughout codebase
 - Updated `run_repospark.sh` to check for new package structure and enforce Python 3.13.11+
@@ -161,7 +160,6 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 - Input validation before repository creation
 - Dependency checking (Git, GitHub CLI)
 - Authentication validation
-- Demo mode with pre-filled sample data
 - Template system for README generation:
   - Support for multiple project types (Python, JavaScript, Go, Rust, etc.)
   - Customizable README templates
@@ -187,7 +185,6 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 - Development tools:
   - `run_repospark.sh`: Launcher script
   - `qt-designer.sh`: Qt Designer launcher for UI development
-  - Demo script for showcasing features
 - Documentation:
   - Comprehensive README with installation and usage instructions
   - Feature documentation
