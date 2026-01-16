@@ -82,7 +82,8 @@ def main():
     """Main demo function"""
     app = QApplication(sys.argv)
     app.setApplicationName("RepoSpark Demo")
-    app.setApplicationVersion("1.0.0")
+    from repospark import __version__
+    app.setApplicationVersion(__version__)
     
     # Set application style
     app.setStyle('Fusion')

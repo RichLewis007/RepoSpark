@@ -1119,6 +1119,9 @@ class RepoSparkGUI(QMainWindow):
         self.create_button.clicked.connect(self.create_repository)
         self.cancel_button.clicked.connect(self.cancel_operation)
         
+        # Create menu bar with Help menu
+        self._create_menu_bar()
+        
         # Load and add tabs
         basic_tab = self.create_basic_tab()
         self.tabs.addTab(basic_tab, "Project Basics")
@@ -3010,6 +3013,56 @@ This will create the repository on GitHub and set up the local git repository.""
         self.cancel_button.setEnabled(False)
         self.status_label.setText("Operation cancelled")
     
+    def _create_menu_bar(self) -> None:
+        """
+        Create menu bar with Help menu containing About dialog.
+        """
+        menu_bar = self.menuBar()
+        
+        # Create Help menu
+        help_menu = menu_bar.addMenu("&Help")
+        
+        # Add About action
+        about_action = help_menu.addAction("&About RepoSpark...")
+        about_action.triggered.connect(self.show_about_dialog)
+        about_action.setShortcut("F1")  # F1 for help/about
+        
+        # Add About Qt action (standard Qt action)
+        help_menu.addSeparator()
+        about_qt_action = help_menu.addAction("About &Qt...")
+        about_qt_action.triggered.connect(lambda: QMessageBox.aboutQt(self))
+    
+    def show_about_dialog(self) -> None:
+        """
+        Show About dialog with application information and version.
+        """
+        from . import __version__
+        
+        about_text = f"""
+        <h2>RepoSpark</h2>
+        <p><b>Version {__version__}</b></p>
+        <p>A PySide6 GUI application for creating GitHub repositories</p>
+        <p>Author: Rich Lewis</p>
+        <p>GitHub: <a href="https://github.com/RichLewis007">@RichLewis007</a></p>
+        <hr>
+        <p>RepoSpark helps you create comprehensive GitHub repositories with:</p>
+        <ul>
+            <li>Customizable project scaffolds</li>
+            <li>README.md generation</li>
+            <li>License and gitignore templates</li>
+            <li>Topic management</li>
+            <li>And much more!</li>
+        </ul>
+        <p>Built with PySide6 6.7.3</p>
+        <p>Python {sys.version.split()[0]}</p>
+        """
+        
+        QMessageBox.about(
+            self,
+            "About RepoSpark",
+            about_text
+        )
+    
     def closeEvent(self, event):
         """Handle window close event"""
         # Stop focus timer
@@ -3030,7 +3083,8 @@ def main():
     """Main application entry point"""
     app = QApplication(sys.argv)
     app.setApplicationName("RepoSpark")
-    app.setApplicationVersion("1.0.0")
+    from . import __version__
+    app.setApplicationVersion(__version__)
     
     # Set application style
     app.setStyle('Fusion')
