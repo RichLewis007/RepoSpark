@@ -69,7 +69,7 @@ if ! uv run python3 -c "import PySide6" &> /dev/null; then
 fi
 
 # Check if repospark package exists
-if [ ! -d "src/repospark" ] || [ ! -f "src/repospark/app.py" ]; then
+if [ ! -d "src/repospark" ] || [ ! -f "src/repospark/__init__.py" ] || [ ! -f "src/repospark/main.py" ]; then
     print_error "repospark package not found in src directory"
     exit 1
 fi

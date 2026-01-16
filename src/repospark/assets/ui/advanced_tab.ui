@@ -18,9 +18,9 @@
      </property>
      <layout class="QVBoxLayout" name="remote_layout">
       <item>
-       <widget class="QRadioButton" name="remote_https_radio">
+       <widget class="QRadioButton" name="remote_ssh_radio">
         <property name="text">
-         <string>HTTPS</string>
+         <string>SSH</string>
         </property>
         <property name="checked">
          <bool>true</bool>
@@ -28,9 +28,9 @@
        </widget>
       </item>
       <item>
-       <widget class="QRadioButton" name="remote_ssh_radio">
+       <widget class="QRadioButton" name="remote_https_radio">
         <property name="text">
-         <string>SSH</string>
+         <string>HTTPS</string>
         </property>
        </widget>
       </item>
@@ -49,7 +49,7 @@
          <string>Open repository in browser after creation</string>
         </property>
         <property name="checked">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
        </widget>
       </item>

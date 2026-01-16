@@ -17,7 +17,7 @@ import subprocess
 import sys
 from typing import Any, TypeVar, cast
 
-from PySide6.QtCore import Q_ARG, QMetaObject, Qt, QTimer
+from PySide6.QtCore import Q_ARG, QMetaObject, QSettings, Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
@@ -209,7 +209,7 @@ class RepoSparkGUI(QMainWindow):
 
         # Initialize other required widgets with defaults
         self.gitignore_combo = QComboBox()
-        self.gitignore_combo.addItem("None")
+        self.gitignore_combo.addItem("None (empty)")
         self.topics_edit = QLineEdit()
         self.help_browser = QTextBrowser()
         self.remote_https_radio = self.visibility_public_radio  # Reuse for compatibility
@@ -244,17 +244,32 @@ class RepoSparkGUI(QMainWindow):
 
     def init_ui(self):
         """Initialize the user interface by loading .ui files"""
-        # Get screen size and set window to half width
-        screen = QApplication.primaryScreen()
-        screen_geometry = screen.geometry()
-        half_width = screen_geometry.width() // 2
-        window_height = min(800, screen_geometry.height() - 100)
+        # Set window title with program name and version
+        from repospark import __version__
+        self.setWindowTitle(f"RepoSpark v{__version__}")
 
-        # Center the window horizontally
-        x_position = (screen_geometry.width() - half_width) // 2
-        y_position = (screen_geometry.height() - window_height) // 2
-
-        self.setGeometry(x_position, y_position, half_width, window_height)
+        # Restore window geometry from settings or center on screen
+        settings = QSettings("RepoSpark", "RepoSpark")
+        settings.beginGroup("MainWindow")
+        
+        # Try to restore saved geometry
+        saved_geometry = settings.value("geometry")
+        if saved_geometry:
+            self.restoreGeometry(saved_geometry)
+        else:
+            # First run - center window on screen
+            screen = QApplication.primaryScreen()
+            screen_geometry = screen.geometry()
+            half_width = screen_geometry.width() // 2
+            window_height = min(800, screen_geometry.height() - 100)
+            
+            # Center the window
+            x_position = (screen_geometry.width() - half_width) // 2
+            y_position = (screen_geometry.height() - window_height) // 2
+            
+            self.setGeometry(x_position, y_position, half_width, window_height)
+        
+        settings.endGroup()
 
         # Load main window UI with fallback
         try:
@@ -343,6 +358,7 @@ class RepoSparkGUI(QMainWindow):
         # Find all widgets from the loaded UI using type-safe helper
         self.repo_location_edit = self._find_widget(widget, QLineEdit, "repo_location_edit")
         self.browse_location_btn = self._find_widget(widget, QPushButton, "browse_location_btn")
+        self.folder_name_edit = self._find_widget(widget, QLineEdit, "folder_name_edit")
         self.repo_name_edit = self._find_widget(widget, QLineEdit, "repo_name_edit")
         self.description_edit = self._find_widget(widget, QLineEdit, "description_edit")
         self.visibility_public_radio = self._find_widget(widget, QRadioButton, "visibility_public_radio")
@@ -384,7 +400,10 @@ class RepoSparkGUI(QMainWindow):
         # Wire up signals
         self.browse_location_btn.clicked.connect(self.browse_repository_location)
         self.repo_location_edit.textChanged.connect(self.validate_repository_location)
+        self.folder_name_edit.textChanged.connect(self.update_help_info)
         self.repo_name_edit.textChanged.connect(self.update_scaffold_tree)
+        self.repo_name_edit.textChanged.connect(self.update_help_info)
+        self.description_edit.textChanged.connect(self.update_help_info)
         self.visibility_public_radio.toggled.connect(self.on_visibility_changed)
         self.visibility_private_radio.toggled.connect(self.on_visibility_changed)
         self.license_none_radio.toggled.connect(self.on_license_changed)
@@ -419,14 +438,19 @@ class RepoSparkGUI(QMainWindow):
         widget = load_ui("advanced_tab.ui", self)
 
         # Find widgets from the loaded UI
-        self.remote_https_radio = self._find_widget(widget, QRadioButton, "remote_https_radio")
         self.remote_ssh_radio = self._find_widget(widget, QRadioButton, "remote_ssh_radio")
+        self.remote_https_radio = self._find_widget(widget, QRadioButton, "remote_https_radio")
         self.open_browser_check = self._find_widget(widget, QCheckBox, "open_browser_check")
 
         # Create button group for remote type
         self.remote_button_group = QButtonGroup()
-        self.remote_button_group.addButton(self.remote_https_radio)
         self.remote_button_group.addButton(self.remote_ssh_radio)
+        self.remote_button_group.addButton(self.remote_https_radio)
+        
+        # Ensure defaults are set (SSH checked, open browser checked)
+        # These should already be set from .ui file, but we ensure they're correct
+        self.remote_ssh_radio.setChecked(True)
+        self.open_browser_check.setChecked(True)
 
         return widget
 
@@ -500,6 +524,8 @@ class RepoSparkGUI(QMainWindow):
         # Otherwise, use empty string (user will need to enter it)
         default_name = os.path.basename(os.getcwd()) if sys.stdin.isatty() else ""
         self.repo_name_edit.setText(default_name)
+        # Set folder name to same as repo name initially
+        self.folder_name_edit.setText(default_name)
 
         # Load gitignore templates
         templates = GitHubAPI.get_gitignore_templates()
@@ -523,14 +549,30 @@ class RepoSparkGUI(QMainWindow):
             "TypeScript",
         ]
 
-        # Combine and sort all templates (skip "None" as it's already in the combo from .ui file)
+        # Clear the combo box and add "None (empty)" as the first item
+        self.gitignore_combo.clear()
+        self.gitignore_combo.addItem("None (empty)")
+        
+        # Combine and sort all templates
         all_templates = sorted(templates + custom_templates)
 
         for template in all_templates:
             self.gitignore_combo.addItem(template)
+        
+        # Set default to "None (empty)"
+        self.gitignore_combo.setCurrentIndex(0)
 
         # Initialize README preview
         self.update_readme_preview()
+        
+        # Set focus to Folder Name field and select all text after window is shown
+        # Use QTimer to ensure this happens after the window is fully displayed
+        QTimer.singleShot(0, self._set_folder_name_focus)
+
+    def _set_folder_name_focus(self) -> None:
+        """Set focus to Folder Name field and select all text"""
+        self.folder_name_edit.setFocus()
+        self.folder_name_edit.selectAll()
 
     def browse_repository_location(self) -> None:
         """
@@ -698,40 +740,87 @@ class RepoSparkGUI(QMainWindow):
         if not os.access(repo_location, os.W_OK):
             return False, f"Repository location is not writable: {repo_location}"
 
+        # Validate Folder Name (allows spaces, but has restrictions)
+        folder_name = self.folder_name_edit.text().strip()
+        if not folder_name:
+            return False, "Folder name is required"
+
+        # Check for leading or trailing spaces
+        if folder_name != folder_name.strip():
+            return False, "Folder name cannot start or end with spaces"
+
+        # Invalid characters for folder names on Windows: < > : " | ? * \
+        # Also check for control characters
+        invalid_folder_chars = ['<', '>', ':', '"', '|', '?', '*', '\\']
+        control_chars = [chr(i) for i in range(32) if chr(i) not in ['\t', '\n', '\r']]
+        invalid_chars_found = [char for char in folder_name if char in invalid_folder_chars or char in control_chars]
+        if invalid_chars_found:
+            return (
+                False,
+                f"Folder name contains invalid characters: "
+                f"{', '.join(repr(c) for c in set(invalid_chars_found))}\n\n"
+                f"These characters cannot be used in folder names on Windows and other systems.",
+            )
+
+        # Check for reserved folder names on Windows (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+        reserved_names = [
+            'CON', 'PRN', 'AUX', 'NUL',
+            'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+            'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'
+        ]
+        if folder_name.upper() in reserved_names:
+            return (
+                False,
+                f"Folder name '{folder_name}' is a reserved name on Windows and cannot be used.",
+            )
+
+        # Check for empty name after trimming spaces
+        if not folder_name or folder_name.isspace():
+            return False, "Folder name cannot be empty or only spaces"
+
+        # Validate Repository Name (GitHub rules: alphanumeric + - _ . only, max 100, cannot end with .git, cannot be . or ..)
         repo_name = self.repo_name_edit.text().strip()
         if not repo_name:
             return False, "Repository name is required"
 
-        # Validate repository name format (GitHub rules)
-        # Repository names can only contain alphanumeric characters, hyphens, underscores, and dots
-        # They cannot start with a dot or hyphen, and cannot end with a dot
-        if not re.match(r"^[a-zA-Z0-9._-]+$", repo_name):
-            return (
-                False,
-                "Repository name can only contain alphanumeric characters, "
-                "hyphens, underscores, and dots",
-            )
+        # GitHub rule: Cannot be just "." or ".."
+        if repo_name == "." or repo_name == "..":
+            return False, "Repository name cannot be '.' or '..'"
 
-        if repo_name.startswith(".") or repo_name.startswith("-"):
-            return False, "Repository name cannot start with a dot or hyphen"
-
-        if repo_name.endswith("."):
-            return False, "Repository name cannot end with a dot"
-
+        # GitHub rule: Must be 1-100 characters
+        if len(repo_name) < 1:
+            return False, "Repository name must be at least 1 character"
         if len(repo_name) > 100:
             return False, "Repository name cannot exceed 100 characters"
 
-        # Check for command injection attempts
-        dangerous_chars = [";", "&", "|", "`", "$", "(", ")", "<", ">", "\n", "\r"]
-        if any(char in repo_name for char in dangerous_chars):
-            return False, "Repository name contains invalid characters"
+        # GitHub rule: Only alphanumeric characters, hyphens, underscores, and dots
+        if not re.match(r"^[a-zA-Z0-9._-]+$", repo_name):
+            return (
+                False,
+                "Repository name can only contain alphanumeric characters (a-z, A-Z, 0-9), "
+                "hyphens (-), underscores (_), and dots (.)",
+            )
 
-        # Validate description
+        # GitHub rule: Cannot end with .git
+        if repo_name.endswith(".git"):
+            return False, "Repository name cannot end with '.git'"
+
+        # GitHub rule: Cannot start with a dot or hyphen (common practice, though not strictly enforced by GitHub)
+        if repo_name.startswith(".") or repo_name.startswith("-"):
+            return False, "Repository name cannot start with a dot (.) or hyphen (-)"
+
+        # GitHub rule: Cannot end with a dot
+        if repo_name.endswith("."):
+            return False, "Repository name cannot end with a dot (.)"
+
+        # Validate Description (GitHub: no strict limit, but recommend keeping reasonable)
         description = self.description_edit.text().strip()
-        if len(description) > 160:  # GitHub description limit
-            return False, "Description cannot exceed 160 characters"
+        # GitHub doesn't enforce a strict limit, but descriptions are typically kept under 160 characters
+        # for readability in the UI. We'll allow up to 500 characters but warn if longer.
+        if len(description) > 500:
+            return False, "Description is too long. GitHub recommends keeping descriptions concise (under 160 characters for best display)."
 
-        # Check for dangerous characters in description
+        # Check for dangerous characters in description (newlines, null bytes)
         if any(char in description for char in ["\n", "\r", "\x00"]):
             return False, "Description contains invalid characters (newlines or null bytes)"
 
@@ -783,6 +872,11 @@ class RepoSparkGUI(QMainWindow):
 
     def on_project_type_changed(self) -> None:
         """Handle project type change"""
+        # If "Other" is selected, set gitignore to "None (empty)"
+        if self.project_type_other_radio.isChecked():
+            index = self.gitignore_combo.findText("None (empty)")
+            if index >= 0:
+                self.gitignore_combo.setCurrentIndex(index)
         self.update_help_info()
         self.update_readme_preview()
         self.update_scaffold_tree()
@@ -798,7 +892,11 @@ class RepoSparkGUI(QMainWindow):
         """Check which widget currently has focus and update help accordingly"""
         focused_widget = QApplication.focusWidget()
 
-        if focused_widget == self.repo_name_edit:
+        if focused_widget == self.folder_name_edit:
+            if self.current_focus_section != "folder_name":
+                self.current_focus_section = "folder_name"
+                self.update_help_info()
+        elif focused_widget == self.repo_name_edit:
             if self.current_focus_section != "repo_name":
                 self.current_focus_section = "repo_name"
                 self.update_help_info()
@@ -871,7 +969,10 @@ class RepoSparkGUI(QMainWindow):
             )
 
         # Show context-specific help based on focused section
-        if self.current_focus_section == "repo_name":
+        if self.current_focus_section == "folder_name":
+            folder_name = self.folder_name_edit.text().strip()
+            return self._generate_folder_name_help(folder_name)
+        elif self.current_focus_section == "repo_name":
             return self._generate_repo_name_help(repo_name)
         elif self.current_focus_section == "description":
             return self._generate_description_help(description)
@@ -934,7 +1035,25 @@ class RepoSparkGUI(QMainWindow):
         """
 
     def _generate_repo_name_help(self, repo_name: str) -> str:
-        """Generate help content for repository name"""
+        """Generate help content for repository name with GitHub validation rules"""
+        validation_rules = """
+            <h4>📋 GitHub Repository Name Rules:</h4>
+            <ul>
+                <li><strong>Allowed characters:</strong> Letters (a-z, A-Z), numbers (0-9), hyphens (-), underscores (_), and dots (.)</li>
+                <li><strong>Length:</strong> 1 to 100 characters</li>
+                <li><strong>Cannot:</strong> Start with a dot (.) or hyphen (-)</li>
+                <li><strong>Cannot:</strong> End with a dot (.)</li>
+                <li><strong>Cannot:</strong> End with ".git"</li>
+                <li><strong>Cannot:</strong> Be just "." or ".."</li>
+                <li><strong>Spaces:</strong> Not allowed (use hyphens instead)</li>
+            </ul>
+            <p><strong>Examples:</strong></p>
+            <ul>
+                <li>✅ Valid: "my-project", "project_v2", "project.name"</li>
+                <li>❌ Invalid: "my project" (spaces), ".project" (starts with dot), "project.git" (ends with .git)</li>
+            </ul>
+        """
+        
         if repo_name:
             return f"""
             <html>
@@ -943,6 +1062,7 @@ class RepoSparkGUI(QMainWindow):
                     body {{ font-family: -apple-system, BlinkMacSystemFont,
                         'Segoe UI', Roboto, Arial, sans-serif; }}
                     h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
+                    h4 {{ color: #586069; margin-top: 15px; margin-bottom: 8px; }}
                     p {{ margin: 8px 0; line-height: 1.4; }}
                     ul {{ margin: 8px 0; padding-left: 20px; }}
                     li {{ margin: 4px 0; }}
@@ -951,48 +1071,125 @@ class RepoSparkGUI(QMainWindow):
             </head>
             <body>
                 <h3>📁 Repository Name: <strong>{repo_name}</strong></h3>
-                <p>This will be the name of your GitHub repository. It should be:</p>
-                <ul>
-                    <li>Descriptive and memorable</li>
-                    <li>Use lowercase letters and hyphens</li>
-                    <li>Unique on GitHub</li>
-                    <li>Easy to type and remember</li>
-                </ul>
-                <p><strong>URL:</strong> github.com/username/{repo_name}</p>
+                <p>This will be the name of your GitHub repository and will appear in the URL:</p>
+                <p><strong>github.com/username/{repo_name}</strong></p>
+                {validation_rules}
             </body>
             </html>
             """
         else:
-            return """
+            return f"""
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont,
-                        'Segoe UI', Roboto, Arial, sans-serif; }
-                    h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
-                    p { margin: 8px 0; line-height: 1.4; }
-                    ul { margin: 8px 0; padding-left: 20px; }
-                    li { margin: 4px 0; }
-                    strong { color: #0366d6; }
+                    body {{ font-family: -apple-system, BlinkMacSystemFont,
+                        'Segoe UI', Roboto, Arial, sans-serif; }}
+                    h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
+                    h4 {{ color: #586069; margin-top: 15px; margin-bottom: 8px; }}
+                    p {{ margin: 8px 0; line-height: 1.4; }}
+                    ul {{ margin: 8px 0; padding-left: 20px; }}
+                    li {{ margin: 4px 0; }}
+                    strong {{ color: #0366d6; }}
                 </style>
             </head>
             <body>
                 <h3>📁 Repository Name</h3>
-                <p>Enter a name for your repository. This will be used to create
-                the GitHub repository and will appear in the URL.</p>
-                <p><strong>Guidelines:</strong></p>
-                <ul>
-                    <li>Use lowercase letters and hyphens</li>
-                    <li>Make it descriptive but concise</li>
-                    <li>Avoid special characters</li>
-                    <li>Check if the name is available on GitHub</li>
-                </ul>
+                <p>Enter a name for your GitHub repository. This name must follow GitHub's naming rules.</p>
+                {validation_rules}
+            </body>
+            </html>
+            """
+
+    def _generate_folder_name_help(self, folder_name: str) -> str:
+        """Generate help content for folder name with validation rules"""
+        validation_rules = """
+            <h4>📋 Folder Name Rules:</h4>
+            <ul>
+                <li><strong>Spaces:</strong> Allowed (but cannot start or end with spaces)</li>
+                <li><strong>Invalid characters:</strong> &lt; &gt; : " | ? * \\ (these cannot be used in folder names)</li>
+                <li><strong>Control characters:</strong> Not allowed</li>
+                <li><strong>Reserved names:</strong> Cannot be CON, PRN, AUX, NUL, COM1-9, or LPT1-9 (Windows reserved)</li>
+                <li><strong>Cannot be empty:</strong> Must contain at least one non-space character</li>
+            </ul>
+            <p><strong>Examples:</strong></p>
+            <ul>
+                <li>✅ Valid: "My Project", "project-folder", "project_folder"</li>
+                <li>❌ Invalid: " project" (starts with space), "project:" (contains colon), "CON" (reserved name)</li>
+            </ul>
+            <p><strong>Note:</strong> This is the name of the local folder on your computer. It can be different from the GitHub repository name.</p>
+        """
+        
+        if folder_name:
+            return f"""
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: -apple-system, BlinkMacSystemFont,
+                        'Segoe UI', Roboto, Arial, sans-serif; }}
+                    h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
+                    h4 {{ color: #586069; margin-top: 15px; margin-bottom: 8px; }}
+                    p {{ margin: 8px 0; line-height: 1.4; }}
+                    ul {{ margin: 8px 0; padding-left: 20px; }}
+                    li {{ margin: 4px 0; }}
+                    strong {{ color: #0366d6; }}
+                </style>
+            </head>
+            <body>
+                <h3>📂 Folder Name: <strong>{folder_name}</strong></h3>
+                <p>This will be the name of the local folder on your computer where the repository will be created.</p>
+                {validation_rules}
+            </body>
+            </html>
+            """
+        else:
+            return f"""
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: -apple-system, BlinkMacSystemFont,
+                        'Segoe UI', Roboto, Arial, sans-serif; }}
+                    h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
+                    h4 {{ color: #586069; margin-top: 15px; margin-bottom: 8px; }}
+                    p {{ margin: 8px 0; line-height: 1.4; }}
+                    ul {{ margin: 8px 0; padding-left: 20px; }}
+                    li {{ margin: 4px 0; }}
+                    strong {{ color: #0366d6; }}
+                </style>
+            </head>
+            <body>
+                <h3>📂 Folder Name</h3>
+                <p>Enter a name for the local folder where the repository will be created. This can include spaces and be different from the GitHub repository name.</p>
+                {validation_rules}
             </body>
             </html>
             """
 
     def _generate_description_help(self, description: str) -> str:
-        """Generate help content for description"""
+        """Generate help content for description with GitHub validation rules"""
+        validation_rules = """
+            <h4>📋 GitHub Description Rules:</h4>
+            <ul>
+                <li><strong>Length:</strong> Recommended under 160 characters for best display</li>
+                <li><strong>Maximum:</strong> 500 characters (very long descriptions may be truncated in UI)</li>
+                <li><strong>Cannot contain:</strong> Newlines or null bytes</li>
+                <li><strong>Best practices:</strong> Keep it concise, informative, and searchable</li>
+            </ul>
+            <p><strong>Tips:</strong></p>
+            <ul>
+                <li>Explain what the project does in one sentence</li>
+                <li>Mention key technologies or frameworks used</li>
+                <li>Include the main benefit or purpose</li>
+                <li>Make it searchable with relevant keywords</li>
+            </ul>
+        """
+        
+        desc_length = len(description)
+        length_warning = ""
+        if desc_length > 500:
+            length_warning = f'<p style="color: #d73a49;"><strong>❌ Error:</strong> Description is {desc_length} characters, which exceeds the 500 character limit.</p>'
+        elif desc_length > 160:
+            length_warning = f'<p style="color: #d73a49;"><strong>⚠️ Warning:</strong> Description is {desc_length} characters. GitHub recommends keeping descriptions under 160 characters for best display.</p>'
+        
         if description:
             return f"""
             <html>
@@ -1001,6 +1198,7 @@ class RepoSparkGUI(QMainWindow):
                     body {{ font-family: -apple-system, BlinkMacSystemFont,
                         'Segoe UI', Roboto, Arial, sans-serif; }}
                     h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
+                    h4 {{ color: #586069; margin-top: 15px; margin-bottom: 8px; }}
                     p {{ margin: 8px 0; line-height: 1.4; }}
                     ul {{ margin: 8px 0; padding-left: 20px; }}
                     li {{ margin: 4px 0; }}
@@ -1009,44 +1207,32 @@ class RepoSparkGUI(QMainWindow):
             </head>
             <body>
                 <h3>📝 Description</h3>
-                <p><strong>Current:</strong> {description}</p>
-                <p>This description will appear on your GitHub repository page
-                and in search results.</p>
-                <p><strong>Tips:</strong></p>
-                <ul>
-                    <li>Keep it concise but informative</li>
-                    <li>Explain what the project does</li>
-                    <li>Mention key technologies used</li>
-                    <li>Include the main benefit or purpose</li>
-                </ul>
+                <p><strong>Current ({desc_length} chars):</strong> {description}</p>
+                {length_warning}
+                <p>This description will appear on your GitHub repository page and in search results.</p>
+                {validation_rules}
             </body>
             </html>
             """
         else:
-            return """
+            return f"""
             <html>
             <head>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont,
-                        'Segoe UI', Roboto, Arial, sans-serif; }
-                    h3 { color: #24292e; margin-top: 20px; margin-bottom: 10px; }
-                    p { margin: 8px 0; line-height: 1.4; }
-                    ul { margin: 8px 0; padding-left: 20px; }
-                    li { margin: 4px 0; }
-                    strong { color: #0366d6; }
+                    body {{ font-family: -apple-system, BlinkMacSystemFont,
+                        'Segoe UI', Roboto, Arial, sans-serif; }}
+                    h3 {{ color: #24292e; margin-top: 20px; margin-bottom: 10px; }}
+                    h4 {{ color: #586069; margin-top: 15px; margin-bottom: 8px; }}
+                    p {{ margin: 8px 0; line-height: 1.4; }}
+                    ul {{ margin: 8px 0; padding-left: 20px; }}
+                    li {{ margin: 4px 0; }}
+                    strong {{ color: #0366d6; }}
                 </style>
             </head>
             <body>
                 <h3>📝 Description</h3>
-                <p>Add a brief description of what your project does. This helps
-                others understand your project at a glance.</p>
-                <p><strong>What to include:</strong></p>
-                <ul>
-                    <li>What the project does</li>
-                    <li>Main features or capabilities</li>
-                    <li>Target audience or use case</li>
-                    <li>Key technologies or frameworks</li>
-                </ul>
+                <p>Add a brief description of what your project does. This helps others understand your project quickly.</p>
+                {validation_rules}
             </body>
             </html>
             """
@@ -2330,16 +2516,17 @@ This project is licensed under the {self._get_selected_license()} License.
 
         return {
             "repo_name": self.repo_name_edit.text().strip(),
+            "folder_name": self.folder_name_edit.text().strip(),
             "description": self.description_edit.text().strip(),
             "visibility": self._get_selected_visibility(),
             "gitignore_template": self.gitignore_combo.currentText()
-            if self.gitignore_combo.currentText() != "None"
+            if self.gitignore_combo.currentText() != "None (empty)"
             else "",
             "license": self._get_selected_license().lower().replace(" ", "-")
             if self._get_selected_license() != "None"
             else "",
             "topics": [t.strip() for t in self.topics_edit.text().split(",") if t.strip()],
-            "remote_type": "https" if self.remote_https_radio.isChecked() else "ssh",
+            "remote_type": "ssh" if self.remote_ssh_radio.isChecked() else "https",
             "create_scaffold": self.create_scaffold_check.isChecked(),
             "create_editorconfig": self.create_editorconfig_check.isChecked(),
             "open_browser": self.open_browser_check.isChecked(),
@@ -2366,7 +2553,8 @@ This project is licensed under the {self._get_selected_license()} License.
         msg = f"""Create repository '{config["repo_name"]}'?
 
 Repository Details:
-• Name: {config["repo_name"]}
+• GitHub Name: {config["repo_name"]}
+• Folder Name: {config["folder_name"]}
 • Location: {config["repo_location"]}
 • Visibility: {config["visibility"]}
 • Description: {config["description"] or "None"}
@@ -2376,7 +2564,8 @@ Repository Details:
 • Remote: {config["remote_type"]}
 • Scaffold: {"Yes" if config["create_scaffold"] else "No"}
 
-This will create the repository on GitHub and set up the local git repository."""
+This will create the repository on GitHub and set up the local git repository in:
+{os.path.join(config["repo_location"], config["folder_name"])}"""
 
         reply = QMessageBox.question(
             self,
@@ -2560,6 +2749,12 @@ This will create the repository on GitHub and set up the local git repository.""
 
     def closeEvent(self, event):
         """Handle window close event"""
+        # Save window geometry for next session
+        settings = QSettings("RepoSpark", "RepoSpark")
+        settings.beginGroup("MainWindow")
+        settings.setValue("geometry", self.saveGeometry())
+        settings.endGroup()
+        
         # Stop focus timer
         if self.focus_timer:
             self.focus_timer.stop()

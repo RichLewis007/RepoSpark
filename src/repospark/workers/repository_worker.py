@@ -47,7 +47,8 @@ class RepositoryWorker(QThread):
 
         Args:
             config: Dictionary containing repository configuration:
-                - repo_name: Name of the repository
+                - repo_name: Name of the repository on GitHub
+                - folder_name: Name of the local folder (allows spaces)
                 - repo_location: Directory where repository will be created
                 - visibility: 'public' or 'private'
                 - description: Repository description
@@ -96,14 +97,51 @@ class RepositoryWorker(QThread):
                 self.finished.emit(False, "Operation cancelled")
                 return
 
-            # Change to repository location directory
+            # Get repository location and create full path with folder name
             repo_location = self.config.get("repo_location", os.getcwd())
+            folder_name = self.config.get("folder_name", self.config["repo_name"])
+            
+            # Validate folder name one more time before creating
+            # This is a safety check in case validation was bypassed
+            invalid_folder_chars = ['<', '>', ':', '"', '|', '?', '*', '\\']
+            if any(char in folder_name for char in invalid_folder_chars):
+                self.finished.emit(
+                    False,
+                    f"Folder name contains invalid characters: "
+                    f"{', '.join(c for c in folder_name if c in invalid_folder_chars)}"
+                )
+                return
+            
+            # Create the full path: repo_location/folder_name
+            repo_path = os.path.join(repo_location, folder_name)
+            
             if not os.path.exists(repo_location):
                 os.makedirs(repo_location, exist_ok=True)
+            
+            # Validate that we can create the folder before proceeding
+            try:
+                # Test if the path is valid
+                if os.path.exists(repo_path) and not os.path.isdir(repo_path):
+                    self.finished.emit(
+                        False,
+                        f"Cannot create repository: '{repo_path}' already exists and is not a directory"
+                    )
+                    return
+                
+                # Create the repository directory if it doesn't exist
+                if not os.path.exists(repo_path):
+                    os.makedirs(repo_path, exist_ok=True)
+                    logger.info(f"Created repository directory: {repo_path}")
+            except OSError as e:
+                self.finished.emit(
+                    False,
+                    f"Failed to create repository folder '{folder_name}': {str(e)}"
+                )
+                return
 
             # Store original directory to restore later
             original_cwd = os.getcwd()
-            os.chdir(repo_location)
+            os.chdir(repo_path)
 
             try:
                 # Check if directory is empty and create scaffold if needed
@@ -113,7 +151,7 @@ class RepositoryWorker(QThread):
                         return
                     self.progress.emit("Creating project scaffold...")
                     ScaffoldGenerator.create_scaffold(
-                        self.config["repo_name"],
+                        repo_name,
                         self.config.get("create_editorconfig", True),
                         self.config.get("readme_content", ""),
                     )
