@@ -1,15 +1,21 @@
 """
-UI loader utility for loading Qt Designer .ui files at runtime
+UI loader utility for loading Qt Designer .ui files at runtime.
+
+This module provides functionality to load Qt Designer .ui files at runtime
+using QUiLoader. It supports custom widget registration and proper error handling.
 """
 # Author: Rich Lewis - GitHub: @RichLewis007
 
 import importlib.resources
+import logging
 from typing import Optional, Type, Dict
 
 from PySide6.QtCore import QBuffer, QIODevice
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import QWidget
 
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Registry for custom widget classes
 _custom_widgets: Dict[str, Type[QWidget]] = {}
@@ -19,11 +25,17 @@ def register_custom_widget(name: str, widget_class: Type[QWidget]) -> None:
     """
     Register a custom widget class for QUiLoader.
     
+    Custom widgets must be registered before loading .ui files that use them.
+    
     Args:
         name: The class name as it appears in the .ui file
         widget_class: The Python class to instantiate
+        
+    Example:
+        >>> register_custom_widget("MyCustomWidget", MyCustomWidget)
     """
     _custom_widgets[name] = widget_class
+    logger.debug(f"Registered custom widget: {name} -> {widget_class.__name__}")
 
 
 def load_ui(ui_filename: str, parent: Optional[QWidget] = None) -> QWidget:
@@ -53,19 +65,32 @@ def load_ui(ui_filename: str, parent: Optional[QWidget] = None) -> QWidget:
         buffer.setData(ui_bytes)
         buffer.open(QIODevice.OpenModeFlag.ReadOnly)
         
-        # Use QUiLoader to instantiate the widget tree
-        loader = QUiLoader()
+        try:
+            # Use QUiLoader to instantiate the widget tree
+            loader = QUiLoader()
+            
+            # Register custom widgets
+            for name, widget_class in _custom_widgets.items():
+                loader.registerCustomWidget(widget_class)
+                logger.debug(f"Registered custom widget with loader: {name}")
+            
+            widget = loader.load(buffer, parent)
+            
+            if widget is None:
+                error_msg = loader.errorString()
+                logger.error(f"Failed to load UI file {ui_filename}: {error_msg}")
+                raise RuntimeError(f"Failed to load UI file: {ui_filename}. Error: {error_msg}")
+            
+            logger.info(f"Successfully loaded UI file: {ui_filename}")
+            return widget
+        finally:
+            # Ensure buffer is closed
+            if buffer.isOpen():
+                buffer.close()
         
-        # Register custom widgets
-        for name, widget_class in _custom_widgets.items():
-            loader.registerCustomWidget(widget_class)
-        
-        widget = loader.load(buffer, parent)
-        
-        if widget is None:
-            raise RuntimeError(f"Failed to load UI file: {ui_filename}. Error: {loader.errorString()}")
-        
-        return widget
-        
+    except FileNotFoundError as e:
+        logger.error(f"UI file not found: {ui_filename}")
+        raise RuntimeError(f"UI file not found: {ui_filename}") from e
     except Exception as e:
+        logger.error(f"Failed to load UI file {ui_filename}: {str(e)}")
         raise RuntimeError(f"Failed to load UI file {ui_filename}: {str(e)}") from e

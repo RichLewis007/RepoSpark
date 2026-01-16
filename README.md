@@ -93,6 +93,36 @@ A Python GUI for creating the most comprehensive scaffold for new GitHub reposit
 - **EditorConfig**: Create .editorconfig file for consistent coding style
 - **Scaffold Preview**: Shows what files and directories will be created
 
+## Customizing the UI
+
+The application uses Qt Designer `.ui` files for the interface, which means you can customize the appearance and layout using Qt Designer:
+
+1. **Locate UI files**: All `.ui` files are in `src/repospark/assets/ui/`
+
+   - `main_window.ui` - Main window layout
+   - `basic_tab.ui` - Project Basics tab
+   - `readme_tab.ui` - README.md tab
+   - `advanced_tab.ui` - Advanced Settings tab
+   - `scaffold_tab.ui` - Project Scaffold tab
+
+2. **Edit with Qt Designer**:
+
+   ```bash
+   # Use the provided script to launch Qt Designer
+   ./qt-designer.sh
+   ```
+
+   Or manually:
+
+   ```bash
+   uv run designer
+   ```
+
+3. **Important**: When editing `.ui` files:
+   - Keep widget object names (objectName) unchanged - the code uses these to find widgets
+   - Don't remove required widgets - the application expects all widgets to be present
+   - Test after making changes to ensure the application still loads correctly
+
 ## Generated Project Structure
 
 When scaffold is enabled, the following structure is created:

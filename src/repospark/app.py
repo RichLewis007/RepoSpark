@@ -8,6 +8,9 @@ import sys
 import os
 import subprocess
 import json
+import re
+import logging
+import shlex
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 
@@ -19,10 +22,13 @@ from PySide6.QtWidgets import (
     QDialogButtonBox, QScrollArea, QSplitter, QFrame, QRadioButton,
     QButtonGroup, QTextBrowser, QTreeWidget, QTreeWidgetItem
 )
-from PySide6.QtCore import Qt, QThread, Signal, QTimer
+from PySide6.QtCore import Qt, QThread, Signal, QTimer, QMetaObject, Q_ARG
 from PySide6.QtGui import QFont, QIcon, QPixmap, QPainter, QColor
 
 from .ui_loader import load_ui, register_custom_widget
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 class GitHubAPI:
@@ -83,10 +89,24 @@ class GitHubAPI:
     
     @staticmethod
     def set_topics(username: str, repo_name: str, topics: List[str]) -> bool:
-        """Set repository topics"""
+        """
+        Set repository topics.
+        
+        Args:
+            username: GitHub username
+            repo_name: Repository name
+            topics: List of topic strings
+            
+        Returns:
+            True if topics were set successfully, False otherwise
+        """
         if not topics:
             return True
-            
+        
+        # Sanitize inputs
+        username_safe = shlex.quote(username)
+        repo_name_safe = shlex.quote(repo_name)
+        
         try:
             topics_json = json.dumps(topics)
             result = subprocess.run([
@@ -94,13 +114,15 @@ class GitHubAPI:
                 '-F', f'topics={topics_json}',
                 '-H', 'Accept: application/vnd.github.mercy-preview+json'
             ], capture_output=True, text=True, check=True)
+            logger.info(f"Successfully set topics for {username}/{repo_name}: {topics}")
             return True
         except subprocess.CalledProcessError as e:
             # Topics setting is not critical, so we just log and continue
-            print(f"Warning: Failed to set topics: {e.stderr if e.stderr else str(e)}", file=sys.stderr)
+            error_msg = e.stderr if e.stderr else str(e)
+            logger.warning(f"Failed to set topics for {username}/{repo_name}: {error_msg}")
             return False
         except FileNotFoundError:
-            print("Error: GitHub CLI (gh) not found", file=sys.stderr)
+            logger.error("GitHub CLI (gh) not found in PATH")
             return False
 
 
@@ -109,34 +131,62 @@ class GitOperations:
     
     @staticmethod
     def init_repository() -> bool:
-        """Initialize git repository"""
+        """
+        Initialize git repository in current directory.
+        
+        Returns:
+            True if repository was initialized successfully, False otherwise
+        """
         try:
             subprocess.run(['git', 'init'], capture_output=True, text=True, check=True)
+            logger.info("Git repository initialized successfully")
             return True
         except subprocess.CalledProcessError as e:
-            print(f"Error initializing git repository: {e.stderr if e.stderr else str(e)}", file=sys.stderr)
+            error_msg = e.stderr if e.stderr else str(e)
+            logger.error(f"Error initializing git repository: {error_msg}")
             return False
         except FileNotFoundError:
-            print("Error: Git not found", file=sys.stderr)
+            logger.error("Git not found in PATH")
             return False
     
     @staticmethod
     def add_and_commit() -> bool:
-        """Add all files and create initial commit"""
+        """
+        Add all files and create initial commit.
+        
+        Returns:
+            True if files were added and committed successfully, False otherwise
+        """
         try:
             subprocess.run(['git', 'add', '.'], capture_output=True, text=True, check=True)
             subprocess.run(['git', 'commit', '-m', 'Initial commit'], capture_output=True, text=True, check=True)
+            logger.info("Files added and committed successfully")
             return True
         except subprocess.CalledProcessError as e:
-            print(f"Error adding/committing files: {e.stderr if e.stderr else str(e)}", file=sys.stderr)
+            error_msg = e.stderr if e.stderr else str(e)
+            logger.error(f"Error adding/committing files: {error_msg}")
             return False
         except FileNotFoundError:
-            print("Error: Git not found", file=sys.stderr)
+            logger.error("Git not found in PATH")
             return False
     
     @staticmethod
     def add_remote(username: str, repo_name: str, remote_type: str = 'https') -> bool:
-        """Add remote origin"""
+        """
+        Add remote origin to git repository.
+        
+        Args:
+            username: GitHub username
+            repo_name: Repository name
+            remote_type: 'https' or 'ssh'
+            
+        Returns:
+            True if remote was added successfully, False otherwise
+        """
+        # Sanitize inputs
+        username_safe = shlex.quote(username)
+        repo_name_safe = shlex.quote(repo_name)
+        
         try:
             if remote_type == 'ssh':
                 remote_url = f"git@github.com:{username}/{repo_name}.git"
@@ -144,6 +194,7 @@ class GitOperations:
                 remote_url = f"https://github.com/{username}/{repo_name}.git"
             
             subprocess.run(['git', 'remote', 'add', 'origin', remote_url], capture_output=True, text=True, check=True)
+            logger.info(f"Remote origin added: {remote_url}")
             return True
         except subprocess.CalledProcessError as e:
             # Check if remote already exists
@@ -151,13 +202,17 @@ class GitOperations:
                 # Try to update existing remote
                 try:
                     subprocess.run(['git', 'remote', 'set-url', 'origin', remote_url], capture_output=True, text=True, check=True)
+                    logger.info(f"Remote origin updated: {remote_url}")
                     return True
-                except subprocess.CalledProcessError:
-                    pass
-            print(f"Error adding remote: {e.stderr if e.stderr else str(e)}", file=sys.stderr)
+                except subprocess.CalledProcessError as update_error:
+                    error_msg = update_error.stderr if update_error.stderr else str(update_error)
+                    logger.error(f"Error updating remote: {error_msg}")
+            else:
+                error_msg = e.stderr if e.stderr else str(e)
+                logger.error(f"Error adding remote: {error_msg}")
             return False
         except FileNotFoundError:
-            print("Error: Git not found", file=sys.stderr)
+            logger.error("Git not found in PATH")
             return False
     
     @staticmethod
@@ -362,8 +417,16 @@ class RepositoryWorker(QThread):
     
     def run(self):
         try:
+            # Check if we should stop
+            if self._should_stop:
+                self.finished.emit(False, "Operation cancelled")
+                return
+            
             # Check if directory is empty and create scaffold if needed
             if self.config.get('create_scaffold', False):
+                if self._should_stop:
+                    self.finished.emit(False, "Operation cancelled")
+                    return
                 self.progress.emit("Creating project scaffold...")
                 ScaffoldGenerator.create_scaffold(
                     self.config['repo_name'],
@@ -379,6 +442,9 @@ class RepositoryWorker(QThread):
             ]
             
             # Create GitHub repository
+            if self._should_stop:
+                self.finished.emit(False, "Operation cancelled")
+                return
             self.progress.emit("Creating GitHub repository...")
             if not GitHubAPI.create_repository(
                 self.config['repo_name'],
@@ -391,6 +457,9 @@ class RepositoryWorker(QThread):
                 return
             
             # Create custom gitignore file if needed (before git init)
+            if self._should_stop:
+                self.finished.emit(False, "Operation cancelled")
+                return
             if gitignore_template in custom_gitignore_templates:
                 self.progress.emit(f"Creating custom .gitignore for {gitignore_template}...")
                 self._create_custom_gitignore(gitignore_template)
@@ -401,6 +470,9 @@ class RepositoryWorker(QThread):
                 self._fetch_gitignore_template(gitignore_template)
             
             # Initialize git if needed
+            if self._should_stop:
+                self.finished.emit(False, "Operation cancelled")
+                return
             if not os.path.exists('.git'):
                 self.progress.emit("Initializing git repository...")
                 if not GitOperations.init_repository():
@@ -408,12 +480,18 @@ class RepositoryWorker(QThread):
                     return
             
             # Add and commit files
+            if self._should_stop:
+                self.finished.emit(False, "Operation cancelled")
+                return
             self.progress.emit("Adding and committing files...")
             if not GitOperations.add_and_commit():
                 self.finished.emit(False, "Failed to add and commit files")
                 return
             
             # Add remote
+            if self._should_stop:
+                self.finished.emit(False, "Operation cancelled")
+                return
             self.progress.emit("Adding remote origin...")
             if not GitOperations.add_remote(
                 self.config['username'],
@@ -424,12 +502,18 @@ class RepositoryWorker(QThread):
                 return
             
             # Push to GitHub
+            if self._should_stop:
+                self.finished.emit(False, "Operation cancelled")
+                return
             self.progress.emit("Pushing to GitHub...")
             if not GitOperations.push_to_remote():
                 self.finished.emit(False, "Failed to push to GitHub")
                 return
             
             # Set topics
+            if self._should_stop:
+                self.finished.emit(False, "Operation cancelled")
+                return
             if self.config.get('topics'):
                 self.progress.emit("Setting repository topics...")
                 if not GitHubAPI.set_topics(
@@ -781,12 +865,184 @@ class RepoSparkGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.worker = None
+        self.focus_timer = None
         
         # Register custom widgets for QUiLoader
         register_custom_widget("FolderTreeWidget", FolderTreeWidget)
         
         self.init_ui()
         self.load_defaults()
+    
+    def _find_widget(self, parent: QWidget, widget_type: type, name: str) -> Optional[QWidget]:
+        """
+        Helper method to find a widget and raise an error if not found.
+        
+        Args:
+            parent: Parent widget to search in
+            widget_type: Type of widget to find
+            name: Name of the widget
+            
+        Returns:
+            The found widget
+            
+        Raises:
+            RuntimeError: If widget is not found
+        """
+        widget = parent.findChild(widget_type, name)
+        if widget is None:
+            raise RuntimeError(f"Required widget '{name}' ({widget_type.__name__}) not found in UI file")
+        return widget
+    
+    def _find_widgets(self, parent: QWidget, widget_specs: List[Tuple[type, str]]) -> Dict[str, QWidget]:
+        """
+        Find multiple widgets at once and validate they all exist.
+        
+        This method reduces code duplication and provides consistent error handling
+        when validating multiple widgets from a loaded UI file.
+        
+        Args:
+            parent: Parent widget to search in
+            widget_specs: List of tuples containing (widget_type, widget_name)
+            
+        Returns:
+            Dictionary mapping widget names to found widgets
+            
+        Raises:
+            RuntimeError: If any widget is not found (includes list of all missing widgets)
+            
+        Example:
+            >>> widgets = self._find_widgets(central_widget, [
+            ...     (QTabWidget, "tabs"),
+            ...     (QPushButton, "create_button"),
+            ...     (QPushButton, "cancel_button"),
+            ... ])
+            >>> tabs = widgets["tabs"]
+            >>> create_btn = widgets["create_button"]
+        """
+        widgets = {}
+        missing = []
+        
+        for widget_type, name in widget_specs:
+            widget = parent.findChild(widget_type, name)
+            if widget is None:
+                missing.append(f"'{name}' ({widget_type.__name__})")
+            else:
+                widgets[name] = widget
+        
+        if missing:
+            missing_list = ", ".join(missing)
+            raise RuntimeError(
+                f"Required widgets not found in UI file: {missing_list}"
+            )
+        
+        return widgets
+    
+    def _create_fallback_ui(self) -> QWidget:
+        """
+        Create a minimal fallback UI when .ui files cannot be loaded.
+        
+        This provides basic functionality even when UI files are missing or corrupted.
+        
+        Returns:
+            QWidget: A minimal central widget with basic controls
+        """
+        logger.warning("Creating fallback UI due to .ui file loading failure")
+        
+        fallback_widget = QWidget()
+        layout = QVBoxLayout(fallback_widget)
+        
+        # Add error message
+        error_label = QLabel(
+            "⚠️ UI Loading Error\n\n"
+            "The application is running in fallback mode.\n"
+            "Please ensure all .ui files are present in:\n"
+            "src/repospark/assets/ui/\n\n"
+            "Some features may be limited."
+        )
+        error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        error_label.setStyleSheet("color: #d73a49; font-size: 14px; padding: 20px;")
+        layout.addWidget(error_label)
+        
+        # Add basic controls
+        self.repo_name_edit = QLineEdit()
+        self.repo_name_edit.setPlaceholderText("Repository name")
+        layout.addWidget(QLabel("Repository Name:"))
+        layout.addWidget(self.repo_name_edit)
+        
+        self.description_edit = QLineEdit()
+        self.description_edit.setPlaceholderText("Description (optional)")
+        layout.addWidget(QLabel("Description:"))
+        layout.addWidget(self.description_edit)
+        
+        # Visibility
+        visibility_group = QGroupBox("Visibility")
+        visibility_layout = QVBoxLayout(visibility_group)
+        self.visibility_public_radio = QRadioButton("Public")
+        self.visibility_public_radio.setChecked(True)
+        self.visibility_private_radio = QRadioButton("Private")
+        visibility_layout.addWidget(self.visibility_public_radio)
+        visibility_layout.addWidget(self.visibility_private_radio)
+        layout.addWidget(visibility_group)
+        
+        # Create button
+        self.create_button = QPushButton("Create Repository")
+        self.create_button.clicked.connect(self.create_repository)
+        layout.addWidget(self.create_button)
+        
+        # Status label
+        self.status_label = QLabel("Ready to create repository")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.status_label)
+        
+        # Progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        layout.addWidget(self.progress_bar)
+        
+        # Cancel button
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.setEnabled(False)
+        self.cancel_button.clicked.connect(self.cancel_operation)
+        layout.addWidget(self.cancel_button)
+        
+        # Initialize minimal tab widget (empty)
+        self.tabs = QTabWidget()
+        self.tabs.setVisible(False)  # Hide tabs in fallback mode
+        
+        # Initialize other required widgets with defaults
+        self.gitignore_combo = QComboBox()
+        self.gitignore_combo.addItem("None")
+        self.topics_edit = QLineEdit()
+        self.help_browser = QTextBrowser()
+        self.remote_https_radio = self.visibility_public_radio  # Reuse for compatibility
+        self.remote_ssh_radio = self.visibility_private_radio
+        self.open_browser_check = QCheckBox()
+        self.create_scaffold_check = QCheckBox()
+        self.create_scaffold_check.setChecked(True)
+        self.create_editorconfig_check = QCheckBox()
+        self.create_editorconfig_check.setChecked(True)
+        self.scaffold_tree = FolderTreeWidget()
+        self.template_selector = QComboBox()
+        self.readme_editor = QTextEdit()
+        self.readme_preview = QTextEdit()
+        self.regenerate_readme_btn = QPushButton()
+        
+        # Initialize radio buttons for license and project type
+        self.license_mit_radio = self.visibility_public_radio  # Reuse for compatibility
+        self.license_none_radio = self.visibility_private_radio
+        self.license_apache_radio = self.visibility_private_radio
+        self.license_gpl_radio = self.visibility_private_radio
+        self.project_type_other_radio = self.visibility_public_radio
+        self.project_type_python_lib_radio = self.visibility_private_radio
+        self.project_type_python_cli_radio = self.visibility_private_radio
+        self.project_type_js_radio = self.visibility_private_radio
+        self.project_type_web_radio = self.visibility_private_radio
+        self.project_type_data_radio = self.visibility_private_radio
+        self.project_type_docs_radio = self.visibility_private_radio
+        
+        layout.addStretch()
+        
+        return fallback_widget
     
     def init_ui(self):
         """Initialize the user interface by loading .ui files"""
@@ -802,16 +1058,58 @@ class RepoSparkGUI(QMainWindow):
         
         self.setGeometry(x_position, y_position, half_width, window_height)
         
-        # Load main window UI
-        central_widget = load_ui("main_window.ui", self)
-        self.setCentralWidget(central_widget)
+        # Load main window UI with fallback
+        try:
+            central_widget = load_ui("main_window.ui", self)
+            self.setCentralWidget(central_widget)
+        except RuntimeError as e:
+            logger.error(f"Failed to load main window UI: {e}")
+            # Show error dialog with fallback option
+            reply = QMessageBox.critical(
+                self, 
+                "UI Loading Error", 
+                f"Failed to load main window UI:\n{str(e)}\n\n"
+                "Would you like to continue with a minimal fallback interface?\n"
+                "(Some features may not be available)",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                # Create fallback UI
+                central_widget = self._create_fallback_ui()
+                self.setCentralWidget(central_widget)
+                QMessageBox.warning(
+                    self,
+                    "Fallback Mode",
+                    "Running in fallback mode. Some features may be limited.\n"
+                    "Please check that all .ui files are present in:\n"
+                    "src/repospark/assets/ui/"
+                )
+            else:
+                raise
         
-        # Find widgets from the loaded UI
-        self.tabs = central_widget.findChild(QTabWidget, "tabs")
-        self.progress_bar = central_widget.findChild(QProgressBar, "progress_bar")
-        self.status_label = central_widget.findChild(QLabel, "status_label")
-        self.create_button = central_widget.findChild(QPushButton, "create_button")
-        self.cancel_button = central_widget.findChild(QPushButton, "cancel_button")
+        # Find widgets from the loaded UI using batch validation
+        try:
+            widgets = self._find_widgets(central_widget, [
+                (QTabWidget, "tabs"),
+                (QProgressBar, "progress_bar"),
+                (QLabel, "status_label"),
+                (QPushButton, "create_button"),
+                (QPushButton, "cancel_button"),
+            ])
+            self.tabs = widgets["tabs"]
+            self.progress_bar = widgets["progress_bar"]
+            self.status_label = widgets["status_label"]
+            self.create_button = widgets["create_button"]
+            self.cancel_button = widgets["cancel_button"]
+        except RuntimeError as e:
+            QMessageBox.critical(
+                None,
+                "UI Configuration Error",
+                f"Failed to find required widgets:\n{str(e)}\n\nPlease check the .ui files."
+            )
+            raise
         
         # Set initial state
         self.progress_bar.setVisible(False)
@@ -1020,7 +1318,12 @@ class RepoSparkGUI(QMainWindow):
         self.update_readme_preview()
     
     def validate_inputs(self) -> Tuple[bool, str]:
-        """Validate user inputs"""
+        """
+        Validate user inputs including repository name, description, and topics.
+        
+        Returns:
+            Tuple of (is_valid, error_message). If valid, error_message is empty string.
+        """
         repo_name = self.repo_name_edit.text().strip()
         if not repo_name:
             return False, "Repository name is required"
@@ -1028,7 +1331,6 @@ class RepoSparkGUI(QMainWindow):
         # Validate repository name format (GitHub rules)
         # Repository names can only contain alphanumeric characters, hyphens, underscores, and dots
         # They cannot start with a dot or hyphen, and cannot end with a dot
-        import re
         if not re.match(r'^[a-zA-Z0-9._-]+$', repo_name):
             return False, "Repository name can only contain alphanumeric characters, hyphens, underscores, and dots"
         
@@ -1045,6 +1347,28 @@ class RepoSparkGUI(QMainWindow):
         dangerous_chars = [';', '&', '|', '`', '$', '(', ')', '<', '>', '\n', '\r']
         if any(char in repo_name for char in dangerous_chars):
             return False, "Repository name contains invalid characters"
+        
+        # Validate description
+        description = self.description_edit.text().strip()
+        if len(description) > 160:  # GitHub description limit
+            return False, "Description cannot exceed 160 characters"
+        
+        # Check for dangerous characters in description
+        if any(char in description for char in ['\n', '\r', '\x00']):
+            return False, "Description contains invalid characters (newlines or null bytes)"
+        
+        # Validate topics
+        topics_text = self.topics_edit.text().strip()
+        if topics_text:
+            topics = [t.strip() for t in topics_text.split(',') if t.strip()]
+            if len(topics) > 20:  # GitHub topics limit
+                return False, "Maximum 20 topics allowed"
+            
+            for topic in topics:
+                if len(topic) > 35:  # GitHub topic length limit
+                    return False, f"Topic '{topic}' exceeds maximum length of 35 characters"
+                if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9-]*$', topic):
+                    return False, f"Topic '{topic}' contains invalid characters. Topics can only contain alphanumeric characters and hyphens, and must start with a letter or number"
         
         # Check if gh CLI is available
         try:
@@ -1063,6 +1387,7 @@ class RepoSparkGUI(QMainWindow):
         if not user_info:
             return False, "GitHub CLI is not authenticated. Run 'gh auth login' first"
         
+        logger.debug(f"Input validation passed for repository: {repo_name}")
         return True, ""
     
     def on_visibility_changed(self) -> None:
@@ -2481,7 +2806,12 @@ This project is licensed under the {self.license_combo.currentText()} License.
             self.scaffold_tree.add_file_item(tests_folder, "test_docs.py", "test")
     
     def get_basic_config(self) -> Dict[str, Any]:
-        """Get basic configuration for templates"""
+        """
+        Get basic configuration for templates.
+        
+        Returns:
+            Dictionary containing basic repository configuration
+        """
         user_info = GitHubAPI.get_user_info()
         
         return {
@@ -2493,7 +2823,12 @@ This project is licensed under the {self.license_combo.currentText()} License.
         }
     
     def get_config(self) -> Dict[str, Any]:
-        """Get configuration from UI"""
+        """
+        Get complete configuration from UI for repository creation.
+        
+        Returns:
+            Dictionary containing all configuration needed to create repository
+        """
         user_info = GitHubAPI.get_user_info()
         
         return {
@@ -2561,18 +2896,68 @@ This will create the repository on GitHub and set up the local git repository.""
         self.worker.start()
     
     def update_progress(self, message: str) -> None:
-        """Update progress message"""
-        self.status_label.setText(message)
+        """
+        Update progress message in a thread-safe manner.
+        
+        This method can be called from any thread and will safely update
+        the UI using QMetaObject.invokeMethod for explicit thread safety.
+        
+        Args:
+            message: Progress message to display
+        """
+        # Use QMetaObject.invokeMethod for explicit thread-safe UI updates
+        QMetaObject.invokeMethod(
+            self.status_label,
+            "setText",
+            Qt.ConnectionType.QueuedConnection,
+            Q_ARG(str, message)
+        )
     
     def on_creation_finished(self, success: bool, message: str) -> None:
-        """Handle repository creation completion"""
-        self.progress_bar.setVisible(False)
-        self.create_button.setEnabled(True)
-        self.cancel_button.setEnabled(False)
+        """
+        Handle repository creation completion in a thread-safe manner.
+        
+        This method is called from the worker thread and uses thread-safe
+        methods to update the UI.
+        
+        Args:
+            success: Whether the operation succeeded
+            message: Completion message
+        """
+        # Use thread-safe UI updates
+        QMetaObject.invokeMethod(
+            self.progress_bar,
+            "setVisible",
+            Qt.ConnectionType.QueuedConnection,
+            Q_ARG(bool, False)
+        )
+        QMetaObject.invokeMethod(
+            self.create_button,
+            "setEnabled",
+            Qt.ConnectionType.QueuedConnection,
+            Q_ARG(bool, True)
+        )
+        QMetaObject.invokeMethod(
+            self.cancel_button,
+            "setEnabled",
+            Qt.ConnectionType.QueuedConnection,
+            Q_ARG(bool, False)
+        )
         
         if success:
-            self.status_label.setText("Repository created successfully!")
-            QMessageBox.information(self, "Success", message)
+            QMetaObject.invokeMethod(
+                self.status_label,
+                "setText",
+                Qt.ConnectionType.QueuedConnection,
+                Q_ARG(str, "Repository created successfully!")
+            )
+            # Show message box in main thread
+            QMetaObject.invokeMethod(
+                self,
+                "_show_success_message",
+                Qt.ConnectionType.QueuedConnection,
+                Q_ARG(str, message)
+            )
             
             # Open in browser if requested
             config = self.get_config()
@@ -2586,19 +2971,59 @@ This will create the repository on GitHub and set up the local git repository.""
                 except subprocess.CalledProcessError:
                     pass
         else:
-            self.status_label.setText("Repository creation failed")
-            QMessageBox.critical(self, "Error", message)
+            QMetaObject.invokeMethod(
+                self.status_label,
+                "setText",
+                Qt.ConnectionType.QueuedConnection,
+                Q_ARG(str, "Repository creation failed")
+            )
+            # Show error message box in main thread
+            QMetaObject.invokeMethod(
+                self,
+                "_show_error_message",
+                Qt.ConnectionType.QueuedConnection,
+                Q_ARG(str, message)
+            )
+    
+    def _show_success_message(self, message: str) -> None:
+        """Thread-safe helper to show success message box"""
+        QMessageBox.information(self, "Success", message)
+    
+    def _show_error_message(self, message: str) -> None:
+        """Thread-safe helper to show error message box"""
+        QMessageBox.critical(self, "Error", message)
     
     def cancel_operation(self) -> None:
         """Cancel the current operation"""
         if self.worker and self.worker.isRunning():
-            self.worker.terminate()
-            self.worker.wait()
+            # Use graceful shutdown instead of terminate()
+            self.worker._should_stop = True
+            self.status_label.setText("Cancelling operation...")
+            # Wait for thread to finish gracefully (with timeout)
+            if not self.worker.wait(3000):  # 3 second timeout
+                # If still running, force termination as last resort
+                self.worker.terminate()
+                self.worker.wait()
         
         self.progress_bar.setVisible(False)
         self.create_button.setEnabled(True)
         self.cancel_button.setEnabled(False)
         self.status_label.setText("Operation cancelled")
+    
+    def closeEvent(self, event):
+        """Handle window close event"""
+        # Stop focus timer
+        if self.focus_timer:
+            self.focus_timer.stop()
+        
+        # Cancel any running operations
+        if self.worker and self.worker.isRunning():
+            self.worker._should_stop = True
+            if not self.worker.wait(2000):  # 2 second timeout
+                self.worker.terminate()
+                self.worker.wait()
+        
+        event.accept()
 
 
 def main():
